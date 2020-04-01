@@ -8,8 +8,6 @@ A simple, ergonomic, idiomatic, macro for generating the boilerplate to use rust
 ## Example
 
 ```rust
-use ghost_actor::example::MyError;
-
 ghost_actor::ghost_actor! {
     name: pub MyActor,
     error: MyError,
@@ -45,7 +43,7 @@ impl MyActorImpl {
 async fn async_main() {
     let mut sender = MyActorImpl::spawn();
 
-    assert_eq!(43, sender.add1(42).await.unwrap(),);
+    assert_eq!(43, sender.add1(42).await.unwrap());
 
     sender.ghost_actor_shutdown().await.unwrap();
 
