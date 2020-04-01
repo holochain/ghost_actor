@@ -1,0 +1,20 @@
+[package]
+name = "ghost_actor"
+version = "0.0.1"
+authors = ["Holochain Core Dev Team <devcore@holochain.org>"]
+edition = "2018"
+description = "A simple, ergonomic, idiomatic, macro for generating the boilerplate to use rust futures tasks in a concurrent actor style."
+keywords = []
+categories = []
+license = "Apache-2.0"
+readme = "README.md"
+documentation = "https://docs.rs/ghost_actor"
+repository = "https://github.com/holochain/ghost_actor"
+
+[dependencies]
+futures = "0.3"
+paste = "0.1"
+thiserror = "1"
+
+[dev-dependencies]
+tokio = { version = "0.2", features = ["full"] }
