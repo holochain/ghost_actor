@@ -94,16 +94,55 @@ mod tests {
         }
     }
 
+    fn init_tracing() {
+        let _ = tracing::subscriber::set_global_default(
+            tracing_subscriber::FmtSubscriber::builder()
+                .with_env_filter(tracing_subscriber::EnvFilter::from_default_env())
+                .compact()
+                .finish(),
+        );
+    }
+
     #[tokio::test]
-    async fn it_works() {
+    async fn it_check_echo() {
+        init_tracing();
+
         let mut sender = MyActorImpl::spawn();
 
         assert_eq!(
             "echo: test",
             &sender.test("test".to_string()).await.unwrap(),
         );
+    }
+
+    #[tokio::test]
+    async fn it_check_add_1() {
+        init_tracing();
+
+        let mut sender = MyActorImpl::spawn();
 
         assert_eq!(43, sender.add1(42).await.unwrap(),);
+    }
+
+    #[tokio::test]
+    async fn it_check_shutdown() {
+        init_tracing();
+
+        let mut sender = MyActorImpl::spawn();
+
+        sender.ghost_actor_shutdown().await.unwrap();
+
+        assert_eq!(
+            "Err(GhostActorError(SendError(SendError { kind: Disconnected })))",
+            &format!("{:?}", sender.add1(42).await),
+        );
+    }
+
+    #[tokio::test]
+    async fn it_check_custom_stop() {
+        init_tracing();
+
+        let mut sender = MyActorImpl::spawn();
 
         sender.stop(()).await.unwrap();
 

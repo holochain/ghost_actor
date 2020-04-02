@@ -79,34 +79,40 @@ macro_rules! ghost_actor {
             #[doc = "GhostActor internal protocol enum."]
             enum [< __ $name Protocol >] {
                 __GhostActorShutdown(
-                    ::futures::channel::oneshot::Sender<
-                        std::result::Result<(), $error>
-                    >,
+                    ::futures::channel::oneshot::Sender<(
+                        ::std::result::Result<(), $error>,
+                        ::tracing::Span,
+                    )>,
+                    ::tracing::Span,
                 ),
                 __GhostActorCustom(
                     Box<dyn ::std::any::Any + 'static + Send>,
                     ::futures::channel::oneshot::Sender<
-                        std::result::Result<
+                        ::std::result::Result<
                             Box<dyn ::std::any::Any + 'static + Send>,
                             $error,
                         >
                     >,
+                    ::tracing::Span,
                 ),
                 __GhostActorInternal(
                     Box<dyn ::std::any::Any + 'static + Send>,
                     ::futures::channel::oneshot::Sender<
-                        std::result::Result<
+                        ::std::result::Result<
                             Box<dyn ::std::any::Any + 'static + Send>,
                             $error,
                         >
                     >,
+                    ::tracing::Span,
                 ),
                 $(
                     $req_name (
                         $req_type,
-                        ::futures::channel::oneshot::Sender<
-                            std::result::Result<$res_type, $error>,
-                        >,
+                        ::futures::channel::oneshot::Sender<(
+                            ::std::result::Result<$res_type, $error>,
+                            ::tracing::Span,
+                        )>,
+                        ::tracing::Span,
                     ),
                 )*
             }
@@ -219,14 +225,16 @@ macro_rules! ghost_actor {
                     let driver_fut = async move {
                         while let Some(proto) = recv.next().await {
                             match proto {
-                                __GhostActorShutdown(res) => {
+                                __GhostActorShutdown(res, span) => {
+                                    let _g = span.enter();
                                     *shutdown
                                         .write()
                                         .expect("can acquire shutdown RwLock")
                                         = true;
-                                    let _ = res.send(Ok(()));
+                                    let _ = res.send((Ok(()), ::tracing::info_span!("shutdown_response")));
                                 }
-                                __GhostActorCustom(req, res) => {
+                                __GhostActorCustom(req, res, span) => {
+                                    let _g = span.enter();
                                     let req = req.downcast::<C>()
                                         // shouldn't happen -
                                         // we control the incoming types
@@ -236,7 +244,8 @@ macro_rules! ghost_actor {
                                         Err(e) => Err(e),
                                     });
                                 }
-                                __GhostActorInternal(req, res) => {
+                                __GhostActorInternal(req, res, span) => {
+                                    let _g = span.enter();
                                     let req = req.downcast::<I>()
                                         // shouldn't happen -
                                         // we control the incoming types
@@ -247,10 +256,12 @@ macro_rules! ghost_actor {
                                     });
                                 }
                                 $(
-                                    $req_name(req, res) => {
-                                        let _ = res.send(
-                                            handler. [< handle_ $req_name >] (&mut internal_sender, req)
-                                        );
+                                    $req_name(req, res, span) => {
+                                        let _g = span.enter();
+                                        let _ = res.send((
+                                            handler. [< handle_ $req_name >] (&mut internal_sender, req),
+                                            ::tracing::info_span!(concat!(stringify!($req_name), "_response")),
+                                        ));
                                     }
                                 )*
                             };
@@ -272,35 +283,43 @@ macro_rules! ghost_actor {
                     pub async fn $req_name (
                         &mut self, input: $req_type,
                     ) -> ::std::result::Result<$res_type, $error> {
+                        ::tracing::trace!(request = %stringify!($req_name));
                         let (send, recv) = ::futures::channel::oneshot::channel();
                         let input = [< __ $name Protocol >] :: $req_name(
-                            input, send);
+                            input, send, ::tracing::info_span!(stringify!($req_name)));
                         use ::futures::sink::SinkExt;
                         self
                             .sender
                             .send(input)
                             .await
                             .map_err($crate::GhostActorError::from)?;
-                        recv
+                        let (res, span) = recv
                             .await
-                            .map_err($crate::GhostActorError::from)?
+                            .map_err($crate::GhostActorError::from)?;
+                        let _g = span.enter();
+                        ::tracing::trace!(result = ?res);
+                        res
                     }
                 )*
 
                 /// Shutdown the actor.
                 pub async fn ghost_actor_shutdown(&mut self) -> ::std::result::Result<(), $error> {
+                    ::tracing::trace!(request = "ghost_actor_shutdown");
                     let (send, recv) = ::futures::channel::oneshot::channel();
                     let input = [< __ $name Protocol >] ::__GhostActorShutdown(
-                        send);
+                        send, ::tracing::info_span!("ghost_actor_shutdown"));
                     use ::futures::sink::SinkExt;
                     self
                         .sender
                         .send(input)
                         .await
                         .map_err($crate::GhostActorError::from)?;
-                    recv
+                    let (res, span) = recv
                         .await
-                        .map_err($crate::GhostActorError::from)?
+                        .map_err($crate::GhostActorError::from)?;
+                    let _g = span.enter();
+                    ::tracing::trace!(result = ?res);
+                    res
                 }
 
                 /// Send a custom message to the actor.
@@ -309,9 +328,10 @@ macro_rules! ghost_actor {
                 pub async fn ghost_actor_custom(
                     &mut self, input: C,
                 ) -> ::std::result::Result<C::ResponseType, $error> {
+                    ::tracing::trace!(request = "ghost_actor_custom");
                     let (send, recv) = ::futures::channel::oneshot::channel();
                     let input = [< __ $name Protocol >] ::__GhostActorCustom(
-                        Box::new(input), send);
+                        Box::new(input), send, ::tracing::info_span!("ghost_actor_custom"));
                     use ::futures::sink::SinkExt;
                     self
                         .sender
@@ -399,8 +419,8 @@ macro_rules! ghost_actor {
                     &mut self, input: I,
                 ) -> ::std::result::Result<I::ResponseType, $error> {
                     let (send, recv) = ::futures::channel::oneshot::channel();
-                    let input = [< __ $name Protocol >] ::__GhostActorCustom(
-                        Box::new(input), send);
+                    let input = [< __ $name Protocol >] ::__GhostActorInternal(
+                        Box::new(input), send, ::tracing::info_span!("ghost_actor_shutdown"));
                     use ::futures::sink::SinkExt;
                     self
                         .sender

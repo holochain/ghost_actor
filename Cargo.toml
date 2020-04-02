@@ -15,6 +15,8 @@ repository = "https://github.com/holochain/ghost_actor"
 futures = "0.3"
 paste = "0.1"
 thiserror = "1"
+tracing = "0.1"
 
 [dev-dependencies]
 tokio = { version = "0.2", features = ["full"] }
+tracing-subscriber = "0.2"
