@@ -56,6 +56,9 @@
 //! # }
 //! ```
 
+mod rpc_enum;
+pub use rpc_enum::*;
+
 mod types;
 pub use types::*;
 
