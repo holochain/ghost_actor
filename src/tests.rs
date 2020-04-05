@@ -24,17 +24,22 @@ pub mod example {
     /// Custom example error type.
     #[derive(Debug, thiserror::Error)]
     pub enum MyError {
-        /// custom errors must support `From<GhostActorError>`
-        GhostActorError(#[from] crate::GhostActorError),
-
-        /// TODO - let's just have one error type
-        /// custom errors must support `From<RpcChanError>`
-        RpcChanError(#[from] crate::RpcChanError),
+        /// custom errors must support `From<GhostError>`
+        GhostError(#[from] crate::GhostError),
     }
 
     impl std::fmt::Display for MyError {
         fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
             write!(f, "{:?}", self)
+        }
+    }
+
+    crate::ghost_chan! {
+        name: pub MyChan,
+        error: MyError,
+        api: {
+            TestMsg::test_msg("will respond with 'echo: input'", String, String),
+            AddOne::add_one("will add 1 to input", u32, u32),
         }
     }
 
@@ -57,8 +62,34 @@ pub mod example {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use crate::*;
     use example::*;
+
+    #[tokio::test]
+    async fn test_ghost_chan_can_call_and_respond() {
+        use futures::stream::StreamExt;
+
+        let (mut send, mut recv) = futures::channel::mpsc::channel(1);
+
+        tokio::task::spawn(async move {
+            while let Some(msg) = recv.next().await {
+                match msg {
+                    MyChan::TestMsg(GhostChanItem { input, respond, .. }) => {
+                        respond(Ok(format!("echo: {}", input))).unwrap();
+                    }
+                    MyChan::AddOne(GhostChanItem { input, respond, .. }) => {
+                        respond(Ok(input + 1)).unwrap();
+                    }
+                }
+            }
+        });
+
+        let r = send.test_msg("hello1".to_string()).await.unwrap();
+        assert_eq!("echo: hello1", &r);
+
+        let r = send.add_one(42).await.unwrap();
+        assert_eq!(43, r);
+    }
 
     /// An example implementation of the example MyActor GhostActor.
     struct MyActorImpl;
@@ -138,7 +169,7 @@ mod tests {
         sender.ghost_actor_shutdown().await.unwrap();
 
         assert_eq!(
-            "Err(GhostActorError(SendError(SendError { kind: Disconnected })))",
+            "Err(GhostError(SendError(SendError { kind: Disconnected })))",
             &format!("{:?}", sender.add_one(42).await),
         );
     }
@@ -152,7 +183,7 @@ mod tests {
         sender.stop(()).await.unwrap();
 
         assert_eq!(
-            "Err(GhostActorError(SendError(SendError { kind: Disconnected })))",
+            "Err(GhostError(SendError(SendError { kind: Disconnected })))",
             &format!("{:?}", sender.add_one(42).await),
         );
     }

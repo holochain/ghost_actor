@@ -1,8 +1,8 @@
-/// RpcChan provides a basis for constructing RpcChannels and eventually
-/// GhostActors. RpcChan provides differentiated constructor functions,
+/// GhostChan provides a basis for constructing GhostChannels and eventually
+/// GhostActors. GhostChan provides differentiated constructor functions,
 /// that generate appropriate input and async await output types.
 #[macro_export]
-macro_rules! rpc_chan {
+macro_rules! ghost_chan {
     // using @inner_ self references so we don't have to export / pollute
     // a bunch of sub macros.
 
@@ -13,7 +13,7 @@ macro_rules! rpc_chan {
         error: $error:ty,
         api: { $( $req_name:ident :: $req_fname:ident ( $doc:expr, $req_type:ty, $res_type:ty ) ),* }
     ) => {
-        $crate::rpc_chan! { @inner
+        $crate::ghost_chan! { @inner
             (), $name, $error, $( $doc, $req_name, $req_fname, $req_type, $res_type ),*
         }
     };
@@ -23,7 +23,7 @@ macro_rules! rpc_chan {
         error: $error:ty,
         api: { $( $req_name:ident :: $req_fname:ident ( $doc:expr, $req_type:ty, $res_type:ty ) ),*, }
     ) => {
-        $crate::rpc_chan! { @inner
+        $crate::ghost_chan! { @inner
             (), $name, $error, $( $doc, $req_name, $req_fname, $req_type, $res_type ),*
         }
     };
@@ -33,7 +33,7 @@ macro_rules! rpc_chan {
         error: $error:ty,
         api: { $( $req_name:ident :: $req_fname:ident ( $doc:expr, $req_type:ty, $res_type:ty ) ),*, }
     ) => {
-        $crate::rpc_chan! { @inner
+        $crate::ghost_chan! { @inner
             (pub), $name, $error, $( $doc, $req_name, $req_fname, $req_type, $res_type ),*
         }
     };
@@ -43,7 +43,7 @@ macro_rules! rpc_chan {
         error: $error:ty,
         api: { $( $req_name:ident :: $req_fname:ident ( $doc:expr, $req_type:ty, $res_type:ty ) ),* }
     ) => {
-        $crate::rpc_chan! { @inner
+        $crate::ghost_chan! { @inner
             (pub), $name, $error, $( $doc, $req_name, $req_fname, $req_type, $res_type ),*
         }
     };
@@ -54,10 +54,10 @@ macro_rules! rpc_chan {
         ($($vis:tt)*), $name:ident, $error:ty,
         $( $doc:expr, $req_name:ident, $req_fname:ident, $req_type:ty, $res_type:ty ),*
     ) => {
-        $crate::rpc_chan! { @inner_protocol
+        $crate::ghost_chan! { @inner_protocol
             ($($vis)*), $name, $error, $( $doc, $req_name, $req_fname, $req_type, $res_type ),*
         }
-        $crate::rpc_chan! { @inner_send_trait
+        $crate::ghost_chan! { @inner_send_trait
             ($($vis)*), $name, $error, $( $doc, $req_name, $req_fname, $req_type, $res_type ),*
         }
     };
@@ -69,11 +69,11 @@ macro_rules! rpc_chan {
         $( $doc:expr, $req_name:ident, $req_fname:ident, $req_type:ty, $res_type:ty ),*
     ) => {
         #[derive(Debug)]
-        #[doc = "RpcChan protocol enum."]
+        #[doc = "GhostChan protocol enum."]
         $($vis)* enum $name {
             $(
                 #[doc = $doc]
-                $req_name ($crate::RpcChanItem<
+                $req_name ($crate::GhostChanItem<
                     $req_type,
                     ::std::result::Result<$res_type, $error>,
                 >),
@@ -88,17 +88,20 @@ macro_rules! rpc_chan {
         $( $doc:expr, $req_name:ident, $req_fname:ident, $req_type:ty, $res_type:ty ),*
     ) => {
         paste::item! {
-            #[doc = "RpcChan protocol enum send trait."]
-            $($vis)* trait [< $name Send >]: $crate::RpcChanSend<$name> {
+            #[doc = "GhostChan protocol enum send trait."]
+            $($vis)* trait [< $name Send >]: $crate::GhostChanSend<$name> {
                 $(
                     #[ doc = $doc ]
                     fn $req_fname ( &mut self, input: $req_type ) -> ::must_future::MustBoxFuture<'_, ::std::result::Result<$res_type, $error>> {
+                        tracing::trace!(request = ?input);
                         let (send, recv) = ::futures::channel::oneshot::channel();
-                        let t = $crate::RpcChanItem {
+                        let t = $crate::GhostChanItem {
                             input,
                             respond: Box::new(move |res| {
-                                if let Err(_) = send.send(res) {
-                                    return Err($crate::RpcChanError::from("send error"));
+                                if let Err(_) = send.send((res, tracing::debug_span!(
+                                    concat!(stringify!($req_fname), "_respond")
+                                ))) {
+                                    return Err($crate::GhostError::from("send error"));
                                 }
                                 Ok(())
                             }),
@@ -107,19 +110,22 @@ macro_rules! rpc_chan {
 
                         let t = $name :: $req_name ( t );
 
-                        let send_fut = self.rpc_chan_send(t);
+                        let send_fut = self.ghost_chan_send(t);
 
                         use ::futures::future::FutureExt;
 
                         async move {
                             send_fut.await?;
-                            recv.await.map_err($crate::RpcChanError::from)?
+                            let (data, span) = recv.await.map_err($crate::GhostError::from)?;
+                            let _g = span.enter();
+                            tracing::trace!(response = ?data);
+                            data
                         }.boxed().into()
                     }
                 )*
             }
 
-            impl<T: $crate::RpcChanSend<$name>> [< $name Send >] for T {}
+            impl<T: $crate::GhostChanSend<$name>> [< $name Send >] for T {}
         }
     };
 }

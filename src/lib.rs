@@ -46,7 +46,7 @@
 //!     sender.ghost_actor_shutdown().await.unwrap();
 //!
 //!     assert_eq!(
-//!         "Err(GhostActorError(SendError(SendError { kind: Disconnected })))",
+//!         "Err(GhostError(SendError(SendError { kind: Disconnected })))",
 //!         &format!("{:?}", sender.add_one(42).await),
 //!     );
 //! }
@@ -57,11 +57,11 @@
 //! # }
 //! ```
 
-mod rpc_chan;
-pub use rpc_chan::*;
-
 mod types;
 pub use types::*;
+
+mod ghost_chan;
+pub use ghost_chan::*;
 
 mod macros;
 pub use macros::*;

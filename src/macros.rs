@@ -53,8 +53,11 @@ macro_rules! ghost_actor {
         ($($vis:tt)*), $name:ident, $error:ty,
         $( $doc:expr, $req_name:ident, $req_fname:ident, $req_type:ty, $res_type:ty ),*
     ) => {
-        $crate::rpc_chan! { @inner
-            ($($vis)*), $name, $error, $( $doc, $req_name, $req_fname, $req_type, $res_type ),*
+        $crate::ghost_chan! { @inner
+            ($($vis)*), $name, $error, $( $doc, $req_name, $req_fname, $req_type, $res_type ),*,
+            "custom", __GhostActorCustom, __ghost_actor_custom, Box<dyn ::std::any::Any + 'static + Send>, Box<dyn ::std::any::Any + 'static + Send>,
+            "internal", __GhostActorInternal, __ghost_actor_internal, Box<dyn ::std::any::Any + 'static + Send>, Box<dyn ::std::any::Any + 'static + Send>,
+            "shutdown", __GhostActorShutdown, __ghost_actor_shutdown, (), ()
         }
         $crate::ghost_actor! { @inner_protocol
             ($($vis)*), $name, $error, $( $doc, $req_name, $req_fname, $req_type, $res_type ),*
@@ -295,10 +298,10 @@ macro_rules! ghost_actor {
                             .sender
                             .send(input)
                             .await
-                            .map_err($crate::GhostActorError::from)?;
+                            .map_err($crate::GhostError::from)?;
                         let (res, span) = recv
                             .await
-                            .map_err($crate::GhostActorError::from)?;
+                            .map_err($crate::GhostError::from)?;
                         let _g = span.enter();
                         ::tracing::trace!(result = ?res);
                         res
@@ -316,10 +319,10 @@ macro_rules! ghost_actor {
                         .sender
                         .send(input)
                         .await
-                        .map_err($crate::GhostActorError::from)?;
+                        .map_err($crate::GhostError::from)?;
                     let (res, span) = recv
                         .await
-                        .map_err($crate::GhostActorError::from)?;
+                        .map_err($crate::GhostError::from)?;
                     let _g = span.enter();
                     ::tracing::trace!(result = ?res);
                     res
@@ -340,10 +343,10 @@ macro_rules! ghost_actor {
                         .sender
                         .send(input)
                         .await
-                        .map_err($crate::GhostActorError::from)?;
+                        .map_err($crate::GhostError::from)?;
                     let res = recv
                         .await
-                        .map_err($crate::GhostActorError::from)?;
+                        .map_err($crate::GhostError::from)?;
                     match res {
                         Ok(res) => {
                             Ok(*res.downcast::<C::ResponseType>()
@@ -430,10 +433,10 @@ macro_rules! ghost_actor {
                         .sender
                         .send(input)
                         .await
-                        .map_err($crate::GhostActorError::from)?;
+                        .map_err($crate::GhostError::from)?;
                     let res = recv
                         .await
-                        .map_err($crate::GhostActorError::from)?;
+                        .map_err($crate::GhostError::from)?;
                     match res {
                         Ok(res) => {
                             Ok(*res.downcast::<I::ResponseType>()

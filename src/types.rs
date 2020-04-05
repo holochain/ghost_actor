@@ -1,6 +1,6 @@
-/// GhostActor error type.
+/// Ghost error type.
 #[derive(Debug, thiserror::Error)]
-pub enum GhostActorError {
+pub enum GhostError {
     /// Failed to send on channel
     SendError(#[from] futures::channel::mpsc::SendError),
 
@@ -11,21 +11,24 @@ pub enum GhostActorError {
     Other(String),
 }
 
-impl std::fmt::Display for GhostActorError {
+impl std::fmt::Display for GhostError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{:?}", self)
     }
 }
 
-impl From<&str> for GhostActorError {
+impl From<&str> for GhostError {
     fn from(s: &str) -> Self {
-        GhostActorError::Other(s.to_string())
+        GhostError::Other(s.to_string())
     }
 }
 
-impl From<GhostActorError> for () {
-    fn from(_: GhostActorError) {}
+impl From<GhostError> for () {
+    fn from(_: GhostError) {}
 }
+
+/// Ghost result type.
+pub type GhostResult<T> = Result<T, GhostError>;
 
 /// Trait for specifying Custom and Internal request types for GhostActors.
 /// The only default impl is `()`, this may require you to create newtypes

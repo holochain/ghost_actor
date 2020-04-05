@@ -48,7 +48,7 @@ async fn async_main() {
     sender.ghost_actor_shutdown().await.unwrap();
 
     assert_eq!(
-        "Err(GhostActorError(SendError(SendError { kind: Disconnected })))",
+        "Err(GhostError(SendError(SendError { kind: Disconnected })))",
         &format!("{:?}", sender.add_one(42).await),
     );
 }
