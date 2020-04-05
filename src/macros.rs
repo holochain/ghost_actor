@@ -10,40 +10,40 @@ macro_rules! ghost_actor {
     (
         name: $name:ident,
         error: $error:ty,
-        api: { $( $req_name:ident ( $doc:expr, $req_type:ty, $res_type:ty ) ),* }
+        api: { $( $req_name:ident :: $req_fname:ident ( $doc:expr, $req_type:ty, $res_type:ty ) ),* }
     ) => {
         $crate::ghost_actor! { @inner
-            (), $name, $error, $( $doc, $req_name, $req_type, $res_type ),*
+            (), $name, $error, $( $doc, $req_name, $req_fname, $req_type, $res_type ),*
         }
     };
 
     (
         name: $name:ident,
         error: $error:ty,
-        api: { $( $req_name:ident ( $doc:expr, $req_type:ty, $res_type:ty ) ),*, }
+        api: { $( $req_name:ident :: $req_fname:ident ( $doc:expr, $req_type:ty, $res_type:ty ) ),*, }
     ) => {
         $crate::ghost_actor! { @inner
-            (), $name, $error, $( $doc, $req_name, $req_type, $res_type ),*
+            (), $name, $error, $( $doc, $req_name, $req_fname, $req_type, $res_type ),*
         }
     };
 
     (
         name: pub $name:ident,
         error: $error:ty,
-        api: { $( $req_name:ident ( $doc:expr, $req_type:ty, $res_type:ty ) ),*, }
+        api: { $( $req_name:ident :: $req_fname:ident ( $doc:expr, $req_type:ty, $res_type:ty ) ),*, }
     ) => {
         $crate::ghost_actor! { @inner
-            (pub), $name, $error, $( $doc, $req_name, $req_type, $res_type ),*
+            (pub), $name, $error, $( $doc, $req_name, $req_fname, $req_type, $res_type ),*
         }
     };
 
     (
         name: pub $name:ident,
         error: $error:ty,
-        api: { $( $req_name:ident ( $doc:expr, $req_type:ty, $res_type:ty ) ),* }
+        api: { $( $req_name:ident :: $req_fname:ident ( $doc:expr, $req_type:ty, $res_type:ty ) ),* }
     ) => {
         $crate::ghost_actor! { @inner
-            (pub), $name, $error, $( $doc, $req_name, $req_type, $res_type ),*
+            (pub), $name, $error, $( $doc, $req_name, $req_fname, $req_type, $res_type ),*
         }
     };
 
@@ -51,19 +51,19 @@ macro_rules! ghost_actor {
 
     ( @inner
         ($($vis:tt)*), $name:ident, $error:ty,
-        $( $doc:expr, $req_name:ident, $req_type:ty, $res_type:ty ),*
+        $( $doc:expr, $req_name:ident, $req_fname:ident, $req_type:ty, $res_type:ty ),*
     ) => {
         $crate::ghost_actor! { @inner_protocol
-            ($($vis)*), $name, $error, $( $doc, $req_name, $req_type, $res_type ),*
+            ($($vis)*), $name, $error, $( $doc, $req_name, $req_fname, $req_type, $res_type ),*
         }
         $crate::ghost_actor! { @inner_handler
-            ($($vis)*), $name, $error, $( $doc, $req_name, $req_type, $res_type ),*
+            ($($vis)*), $name, $error, $( $doc, $req_name, $req_fname, $req_type, $res_type ),*
         }
         $crate::ghost_actor! { @inner_sender
-            ($($vis)*), $name, $error, $( $doc, $req_name, $req_type, $res_type ),*
+            ($($vis)*), $name, $error, $( $doc, $req_name, $req_fname, $req_type, $res_type ),*
         }
         $crate::ghost_actor! { @inner_internal_sender
-            ($($vis)*), $name, $error, $( $doc, $req_name, $req_type, $res_type ),*
+            ($($vis)*), $name, $error, $( $doc, $req_name, $req_fname, $req_type, $res_type ),*
         }
     };
 
@@ -71,7 +71,7 @@ macro_rules! ghost_actor {
 
     ( @inner_protocol
         ($($vis:tt)*), $name:ident, $error:ty,
-        $( $doc:expr, $req_name:ident, $req_type:ty, $res_type:ty ),*
+        $( $doc:expr, $req_name:ident, $req_fname:ident, $req_type:ty, $res_type:ty ),*
     ) => {
         paste::item! {
             #[derive(Debug)]
@@ -123,7 +123,7 @@ macro_rules! ghost_actor {
 
     ( @inner_handler
         ($($vis:tt)*), $name:ident, $error:ty,
-        $( $doc:expr, $req_name:ident, $req_type:ty, $res_type:ty ),*
+        $( $doc:expr, $req_name:ident, $req_fname:ident, $req_type:ty, $res_type:ty ),*
     ) => {
         paste::item! {
             #[doc = "Implement this trait to process incoming actor messages."]
@@ -135,7 +135,7 @@ macro_rules! ghost_actor {
 
                 $(
                     #[doc = $doc]
-                    fn [< handle_ $req_name >] (
+                    fn [< handle_ $req_fname >] (
                         &mut self, internal_sender: &mut [< $name InternalSender >] <C, I>, input: $req_type
                     ) -> ::std::result::Result<$res_type, $error>;
                 )*
@@ -171,7 +171,7 @@ macro_rules! ghost_actor {
 
     ( @inner_sender
         ($($vis:tt)*), $name:ident, $error:ty,
-        $( $doc:expr, $req_name:ident, $req_type:ty, $res_type:ty ),*
+        $( $doc:expr, $req_name:ident, $req_fname:ident, $req_type:ty, $res_type:ty ),*
     ) => {
         paste::item! {
             #[doc = "A cheaply clone-able handle to control a ghost_actor task."]
@@ -259,8 +259,8 @@ macro_rules! ghost_actor {
                                     $req_name(req, res, span) => {
                                         let _g = span.enter();
                                         let _ = res.send((
-                                            handler. [< handle_ $req_name >] (&mut internal_sender, req),
-                                            ::tracing::info_span!(concat!(stringify!($req_name), "_response")),
+                                            handler. [< handle_ $req_fname >] (&mut internal_sender, req),
+                                            ::tracing::info_span!(concat!(stringify!($req_fname), "_response")),
                                         ));
                                     }
                                 )*
@@ -280,13 +280,13 @@ macro_rules! ghost_actor {
 
                 $(
                     #[doc = $doc]
-                    pub async fn $req_name (
+                    pub async fn $req_fname (
                         &mut self, input: $req_type,
                     ) -> ::std::result::Result<$res_type, $error> {
-                        ::tracing::trace!(request = %stringify!($req_name));
+                        ::tracing::trace!(request = %stringify!($req_fname));
                         let (send, recv) = ::futures::channel::oneshot::channel();
                         let input = [< __ $name Protocol >] :: $req_name(
-                            input, send, ::tracing::info_span!(stringify!($req_name)));
+                            input, send, ::tracing::info_span!(stringify!($req_fname)));
                         use ::futures::sink::SinkExt;
                         self
                             .sender
@@ -359,7 +359,7 @@ macro_rules! ghost_actor {
 
     ( @inner_internal_sender
         ($($vis:tt)*), $name:ident, $error:ty,
-        $( $doc:expr, $req_name:ident, $req_type:ty, $res_type:ty ),*
+        $( $doc:expr, $req_name:ident, $req_fname:ident, $req_type:ty, $res_type:ty ),*
     ) => {
         paste::item! {
             #[doc = "The InternalSender accessible from within handlers."]

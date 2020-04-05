@@ -7,13 +7,13 @@
 ///     name: pub MyActor,
 ///     error: MyError,
 ///     api: {
-///         test(
+///         TestMessage::test_message(
 ///             "A test message, sends a String, receives a String.",
 ///             String, String),
-///         add1(
+///         AddOne::add_one(
 ///             "A test function, output adds 1 to input.",
 ///             u32, u32),
-///         stop(
+///         Stop::stop(
 ///             "Calls internal shutdown() command.",
 ///             (), ()),
 ///     }
@@ -37,13 +37,13 @@ pub mod example {
         name: pub MyActor,
         error: MyError,
         api: {
-            test(
+            TestMessage::test_message(
                 "A test message, sends a String, receives a String.",
                 String, String),
-            add1(
+            AddOne::add_one(
                 "A test function, output adds 1 to input.",
                 u32, u32),
-            stop(
+            Stop::stop(
                 "Calls internal shutdown() command.",
                 (), ()),
         }
@@ -59,7 +59,7 @@ mod tests {
     struct MyActorImpl;
 
     impl MyActorHandler<(), ()> for MyActorImpl {
-        fn handle_test(
+        fn handle_test_message(
             &mut self,
             _: &mut MyActorInternalSender<(), ()>,
             input: String,
@@ -67,7 +67,7 @@ mod tests {
             Ok(format!("echo: {}", input))
         }
 
-        fn handle_add1(
+        fn handle_add_one(
             &mut self,
             _: &mut MyActorInternalSender<(), ()>,
             input: u32,
@@ -111,7 +111,7 @@ mod tests {
 
         assert_eq!(
             "echo: test",
-            &sender.test("test".to_string()).await.unwrap(),
+            &sender.test_message("test".to_string()).await.unwrap(),
         );
     }
 
@@ -121,7 +121,7 @@ mod tests {
 
         let mut sender = MyActorImpl::spawn();
 
-        assert_eq!(43, sender.add1(42).await.unwrap(),);
+        assert_eq!(43, sender.add_one(42).await.unwrap(),);
     }
 
     #[tokio::test]
@@ -134,7 +134,7 @@ mod tests {
 
         assert_eq!(
             "Err(GhostActorError(SendError(SendError { kind: Disconnected })))",
-            &format!("{:?}", sender.add1(42).await),
+            &format!("{:?}", sender.add_one(42).await),
         );
     }
 
@@ -148,7 +148,7 @@ mod tests {
 
         assert_eq!(
             "Err(GhostActorError(SendError(SendError { kind: Disconnected })))",
-            &format!("{:?}", sender.add1(42).await),
+            &format!("{:?}", sender.add_one(42).await),
         );
     }
 }

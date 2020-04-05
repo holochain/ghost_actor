@@ -9,7 +9,7 @@
 //!     name: pub MyActor,
 //!     error: MyError,
 //!     api: {
-//!         add1(
+//!         AddOne::add_one(
 //!             "A test function, output adds 1 to input.",
 //!             u32, u32),
 //!     }
@@ -19,7 +19,7 @@
 //! struct MyActorImpl;
 //!
 //! impl MyActorHandler<(), ()> for MyActorImpl {
-//!     fn handle_add1(
+//!     fn handle_add_one(
 //!         &mut self,
 //!         _: &mut MyActorInternalSender<(), ()>,
 //!         input: u32,
@@ -40,13 +40,13 @@
 //! async fn async_main() {
 //!     let mut sender = MyActorImpl::spawn();
 //!
-//!     assert_eq!(43, sender.add1(42).await.unwrap());
+//!     assert_eq!(43, sender.add_one(42).await.unwrap());
 //!
 //!     sender.ghost_actor_shutdown().await.unwrap();
 //!
 //!     assert_eq!(
 //!         "Err(GhostActorError(SendError(SendError { kind: Disconnected })))",
-//!         &format!("{:?}", sender.add1(42).await),
+//!         &format!("{:?}", sender.add_one(42).await),
 //!     );
 //! }
 //! # pub fn main() {
