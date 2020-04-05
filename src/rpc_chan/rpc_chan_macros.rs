@@ -89,11 +89,7 @@ macro_rules! rpc_chan {
     ) => {
         paste::item! {
             #[doc = "RpcChan protocol enum send trait."]
-            $($vis)* trait [< $name Send >] {
-                /// Implement this in your sender newtype to forward RpcChan messages across a
-                /// channel.
-                fn rpc_chan_send(&mut self, item: $name) -> ::must_future::MustBoxFuture<'_, $crate::RpcChanResult<()>>;
-
+            $($vis)* trait [< $name Send >]: $crate::RpcChanSend<$name> {
                 $(
                     #[ doc = $doc ]
                     fn $req_fname ( &mut self, input: $req_type ) -> ::must_future::MustBoxFuture<'_, ::std::result::Result<$res_type, $error>> {
@@ -123,21 +119,7 @@ macro_rules! rpc_chan {
                 )*
             }
 
-            impl [< $name Send >] for ::futures::channel::mpsc::Sender<$name> {
-                fn rpc_chan_send(&mut self, item: $name) -> ::must_future::MustBoxFuture<'_, $crate::RpcChanResult<()>> {
-                    use ::futures::{
-                        future::FutureExt,
-                        sink::SinkExt,
-                    };
-
-                    let send_fut = self.send(item);
-
-                    async move {
-                        send_fut.await?;
-                        Ok(())
-                    }.boxed().into()
-                }
-            }
+            impl<T: $crate::RpcChanSend<$name>> [< $name Send >] for T {}
         }
     };
 }

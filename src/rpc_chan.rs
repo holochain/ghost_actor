@@ -33,6 +33,28 @@ pub type RpcChanResult<T> = Result<T, RpcChanError>;
 /// Response callback for an RpcChan message
 pub type RpcChanRespond<T> = Box<dyn FnOnce(T) -> RpcChanResult<()> + 'static + Send>;
 
+/// Sender trait for RpcChan Send subtraits
+pub trait RpcChanSend<T: 'static + Send> {
+    /// Implement this in your sender newtype to forward RpcChan messages across a
+    /// channel.
+    fn rpc_chan_send(&mut self, item: T) -> ::must_future::MustBoxFuture<'_, RpcChanResult<()>>;
+}
+
+impl<T: 'static + Send> RpcChanSend<T> for ::futures::channel::mpsc::Sender<T> {
+    fn rpc_chan_send(&mut self, item: T) -> ::must_future::MustBoxFuture<'_, RpcChanResult<()>> {
+        use ::futures::{future::FutureExt, sink::SinkExt};
+
+        let send_fut = self.send(item);
+
+        async move {
+            send_fut.await?;
+            Ok(())
+        }
+        .boxed()
+        .into()
+    }
+}
+
 /// Container for RpcChan messages
 pub struct RpcChanItem<I, O> {
     /// the request input type
