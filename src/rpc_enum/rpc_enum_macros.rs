@@ -57,7 +57,7 @@ macro_rules! rpc_enum {
         $crate::rpc_enum! { @inner_protocol
             ($($vis)*), $name, $error, $( $doc, $req_name, $req_fname, $req_type, $res_type ),*
         }
-        $crate::rpc_enum! { @inner_protocol_fns
+        $crate::rpc_enum! { @inner_send_trait
             ($($vis)*), $name, $error, $( $doc, $req_name, $req_fname, $req_type, $res_type ),*
         }
     };
@@ -80,40 +80,63 @@ macro_rules! rpc_enum {
         }
     };
 
-    // -- "protocol_fns" arm writes our protocol enum request functions -- //
+    // -- "send_trait" arm writes our protocol send trait -- //
 
-    ( @inner_protocol_fns
+    ( @inner_send_trait
         ($($vis:tt)*), $name:ident, $error:ty,
         $( $doc:expr, $req_name:ident, $req_fname:ident, $req_type:ty, $res_type:ty ),*
     ) => {
-        impl $name {
-            $(
-                pub fn $req_fname (input: $req_type) -> (
-                    Self,
-                    ::futures::channel::oneshot::Receiver<
-                        ::std::result::Result<$res_type, $error>,
-                    >,
-                ) {
-                    let (send, recv) = ::futures::channel::oneshot::channel();
-                    let t: RpcEnumType<
-                        $req_type,
-                        ::std::result::Result<$res_type, $error>,
-                    > = RpcEnumType {
-                        input,
-                        respond: Box::new(move |res: ::std::result::Result<$res_type, $error>| {
-                            send
-                                .send(res)
-                                .map_err(|_|RpcEnumError::from("send failed"))?;
-                            Ok(())
-                        }),
-                        span: tracing::debug_span!(stringify!($req_fname)),
+        paste::item! {
+            #[doc = "RpcEnum protocol enum send trait."]
+            $($vis)* trait [< $name Send >] {
+                /// Implement this in your sender newtype to forward RpcEnum messages across a
+                /// channel.
+                fn rpc_enum_send(&mut self, item: $name) -> ::must_future::MustBoxFuture<'_, RpcEnumResult<()>>;
+
+                $(
+                    #[ doc = $doc ]
+                    fn $req_fname ( &mut self, input: $req_type ) -> ::must_future::MustBoxFuture<'_, ::std::result::Result<$res_type, $error>> {
+                        let (send, recv) = ::futures::channel::oneshot::channel();
+                        let t = RpcEnumType {
+                            input,
+                            respond: Box::new(move |res| {
+                                if let Err(_) = send.send(res) {
+                                    return Err(RpcEnumError::from("send error"));
+                                }
+                                Ok(())
+                            }),
+                            span: tracing::debug_span!(stringify!($req_fname)),
+                        };
+
+                        let t = $name :: $req_name ( t );
+
+                        let send_fut = self.rpc_enum_send(t);
+
+                        use ::futures::future::FutureExt;
+
+                        async move {
+                            send_fut.await?;
+                            recv.await?
+                        }.boxed().into()
+                    }
+                )*
+            }
+
+            impl [< $name Send >] for ::futures::channel::mpsc::Sender<$name> {
+                fn rpc_enum_send(&mut self, item: $name) -> ::must_future::MustBoxFuture<'_, RpcEnumResult<()>> {
+                    use ::futures::{
+                        future::FutureExt,
+                        sink::SinkExt,
                     };
-                    (
-                        $name :: $req_name ( t ),
-                        recv,
-                    )
+
+                    let send_fut = self.send(item);
+
+                    async move {
+                        send_fut.await?;
+                        Ok(())
+                    }.boxed().into()
                 }
-            )*
+            }
         }
     };
 }

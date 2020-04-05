@@ -1,4 +1,4 @@
-/// GhostActor error type.
+/// RpcEnum error type.
 #[derive(Debug, thiserror::Error)]
 pub enum RpcEnumError {
     SendError(#[from] futures::channel::mpsc::SendError),
@@ -58,17 +58,30 @@ pub mod rpc_enum_example {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use futures::stream::StreamExt;
     use rpc_enum_example::*;
 
     #[tokio::test]
     async fn test_rpc_enum_can_call_and_respond() {
-        let (t, r) = MyEnum::test_msg("hello1".to_string());
-        let RpcEnumType { input, respond, .. } = match t {
-            MyEnum::TestMsg(t) => t,
-            _ => panic!("bad type"),
-        };
-        respond(Ok(format!("echo: {}", input))).unwrap();
-        let r = r.await.unwrap().unwrap();
+        let (mut send, mut recv) = futures::channel::mpsc::channel(1);
+
+        tokio::task::spawn(async move {
+            while let Some(msg) = recv.next().await {
+                match msg {
+                    MyEnum::TestMsg(RpcEnumType { input, respond, .. }) => {
+                        respond(Ok(format!("echo: {}", input))).unwrap();
+                    }
+                    MyEnum::AddOne(RpcEnumType { input, respond, .. }) => {
+                        respond(Ok(input + 1)).unwrap();
+                    }
+                }
+            }
+        });
+
+        let r = send.test_msg("hello1".to_string()).await.unwrap();
         assert_eq!("echo: hello1", &r);
+
+        let r = send.add_one(42).await.unwrap();
+        assert_eq!(43, r);
     }
 }
