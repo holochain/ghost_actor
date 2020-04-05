@@ -26,6 +26,10 @@ pub mod example {
     pub enum MyError {
         /// custom errors must support `From<GhostActorError>`
         GhostActorError(#[from] crate::GhostActorError),
+
+        /// TODO - let's just have one error type
+        /// custom errors must support `From<RpcChanError>`
+        RpcChanError(#[from] crate::RpcChanError),
     }
 
     impl std::fmt::Display for MyError {

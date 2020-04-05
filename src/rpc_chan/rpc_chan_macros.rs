@@ -73,7 +73,7 @@ macro_rules! rpc_chan {
         $($vis)* enum $name {
             $(
                 #[doc = $doc]
-                $req_name (RpcChanItem<
+                $req_name ($crate::RpcChanItem<
                     $req_type,
                     ::std::result::Result<$res_type, $error>,
                 >),
@@ -92,17 +92,17 @@ macro_rules! rpc_chan {
             $($vis)* trait [< $name Send >] {
                 /// Implement this in your sender newtype to forward RpcChan messages across a
                 /// channel.
-                fn rpc_chan_send(&mut self, item: $name) -> ::must_future::MustBoxFuture<'_, RpcChanResult<()>>;
+                fn rpc_chan_send(&mut self, item: $name) -> ::must_future::MustBoxFuture<'_, $crate::RpcChanResult<()>>;
 
                 $(
                     #[ doc = $doc ]
                     fn $req_fname ( &mut self, input: $req_type ) -> ::must_future::MustBoxFuture<'_, ::std::result::Result<$res_type, $error>> {
                         let (send, recv) = ::futures::channel::oneshot::channel();
-                        let t = RpcChanItem {
+                        let t = $crate::RpcChanItem {
                             input,
                             respond: Box::new(move |res| {
                                 if let Err(_) = send.send(res) {
-                                    return Err(RpcChanError::from("send error"));
+                                    return Err($crate::RpcChanError::from("send error"));
                                 }
                                 Ok(())
                             }),
@@ -117,14 +117,14 @@ macro_rules! rpc_chan {
 
                         async move {
                             send_fut.await?;
-                            recv.await?
+                            recv.await.map_err($crate::RpcChanError::from)?
                         }.boxed().into()
                     }
                 )*
             }
 
             impl [< $name Send >] for ::futures::channel::mpsc::Sender<$name> {
-                fn rpc_chan_send(&mut self, item: $name) -> ::must_future::MustBoxFuture<'_, RpcChanResult<()>> {
+                fn rpc_chan_send(&mut self, item: $name) -> ::must_future::MustBoxFuture<'_, $crate::RpcChanResult<()>> {
                     use ::futures::{
                         future::FutureExt,
                         sink::SinkExt,

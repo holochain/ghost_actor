@@ -53,6 +53,9 @@ macro_rules! ghost_actor {
         ($($vis:tt)*), $name:ident, $error:ty,
         $( $doc:expr, $req_name:ident, $req_fname:ident, $req_type:ty, $res_type:ty ),*
     ) => {
+        $crate::rpc_chan! { @inner
+            ($($vis)*), $name, $error, $( $doc, $req_name, $req_fname, $req_type, $res_type ),*
+        }
         $crate::ghost_actor! { @inner_protocol
             ($($vis)*), $name, $error, $( $doc, $req_name, $req_fname, $req_type, $res_type ),*
         }
