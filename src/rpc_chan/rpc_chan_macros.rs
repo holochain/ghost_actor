@@ -1,8 +1,8 @@
-/// RpcEnum provides a basis for constructing RpcChannels and eventually
-/// GhostActors. RpcEnum provides differentiated constructor functions,
+/// RpcChan provides a basis for constructing RpcChannels and eventually
+/// GhostActors. RpcChan provides differentiated constructor functions,
 /// that generate appropriate input and async await output types.
 #[macro_export]
-macro_rules! rpc_enum {
+macro_rules! rpc_chan {
     // using @inner_ self references so we don't have to export / pollute
     // a bunch of sub macros.
 
@@ -13,7 +13,7 @@ macro_rules! rpc_enum {
         error: $error:ty,
         api: { $( $req_name:ident :: $req_fname:ident ( $doc:expr, $req_type:ty, $res_type:ty ) ),* }
     ) => {
-        $crate::rpc_enum! { @inner
+        $crate::rpc_chan! { @inner
             (), $name, $error, $( $doc, $req_name, $req_fname, $req_type, $res_type ),*
         }
     };
@@ -23,7 +23,7 @@ macro_rules! rpc_enum {
         error: $error:ty,
         api: { $( $req_name:ident :: $req_fname:ident ( $doc:expr, $req_type:ty, $res_type:ty ) ),*, }
     ) => {
-        $crate::rpc_enum! { @inner
+        $crate::rpc_chan! { @inner
             (), $name, $error, $( $doc, $req_name, $req_fname, $req_type, $res_type ),*
         }
     };
@@ -33,7 +33,7 @@ macro_rules! rpc_enum {
         error: $error:ty,
         api: { $( $req_name:ident :: $req_fname:ident ( $doc:expr, $req_type:ty, $res_type:ty ) ),*, }
     ) => {
-        $crate::rpc_enum! { @inner
+        $crate::rpc_chan! { @inner
             (pub), $name, $error, $( $doc, $req_name, $req_fname, $req_type, $res_type ),*
         }
     };
@@ -43,7 +43,7 @@ macro_rules! rpc_enum {
         error: $error:ty,
         api: { $( $req_name:ident :: $req_fname:ident ( $doc:expr, $req_type:ty, $res_type:ty ) ),* }
     ) => {
-        $crate::rpc_enum! { @inner
+        $crate::rpc_chan! { @inner
             (pub), $name, $error, $( $doc, $req_name, $req_fname, $req_type, $res_type ),*
         }
     };
@@ -54,10 +54,10 @@ macro_rules! rpc_enum {
         ($($vis:tt)*), $name:ident, $error:ty,
         $( $doc:expr, $req_name:ident, $req_fname:ident, $req_type:ty, $res_type:ty ),*
     ) => {
-        $crate::rpc_enum! { @inner_protocol
+        $crate::rpc_chan! { @inner_protocol
             ($($vis)*), $name, $error, $( $doc, $req_name, $req_fname, $req_type, $res_type ),*
         }
-        $crate::rpc_enum! { @inner_send_trait
+        $crate::rpc_chan! { @inner_send_trait
             ($($vis)*), $name, $error, $( $doc, $req_name, $req_fname, $req_type, $res_type ),*
         }
     };
@@ -69,10 +69,11 @@ macro_rules! rpc_enum {
         $( $doc:expr, $req_name:ident, $req_fname:ident, $req_type:ty, $res_type:ty ),*
     ) => {
         #[derive(Debug)]
-        #[doc = "RpcEnum protocol enum."]
+        #[doc = "RpcChan protocol enum."]
         $($vis)* enum $name {
             $(
-                $req_name (RpcEnumType<
+                #[doc = $doc]
+                $req_name (RpcChanItem<
                     $req_type,
                     ::std::result::Result<$res_type, $error>,
                 >),
@@ -87,21 +88,21 @@ macro_rules! rpc_enum {
         $( $doc:expr, $req_name:ident, $req_fname:ident, $req_type:ty, $res_type:ty ),*
     ) => {
         paste::item! {
-            #[doc = "RpcEnum protocol enum send trait."]
+            #[doc = "RpcChan protocol enum send trait."]
             $($vis)* trait [< $name Send >] {
-                /// Implement this in your sender newtype to forward RpcEnum messages across a
+                /// Implement this in your sender newtype to forward RpcChan messages across a
                 /// channel.
-                fn rpc_enum_send(&mut self, item: $name) -> ::must_future::MustBoxFuture<'_, RpcEnumResult<()>>;
+                fn rpc_chan_send(&mut self, item: $name) -> ::must_future::MustBoxFuture<'_, RpcChanResult<()>>;
 
                 $(
                     #[ doc = $doc ]
                     fn $req_fname ( &mut self, input: $req_type ) -> ::must_future::MustBoxFuture<'_, ::std::result::Result<$res_type, $error>> {
                         let (send, recv) = ::futures::channel::oneshot::channel();
-                        let t = RpcEnumType {
+                        let t = RpcChanItem {
                             input,
                             respond: Box::new(move |res| {
                                 if let Err(_) = send.send(res) {
-                                    return Err(RpcEnumError::from("send error"));
+                                    return Err(RpcChanError::from("send error"));
                                 }
                                 Ok(())
                             }),
@@ -110,7 +111,7 @@ macro_rules! rpc_enum {
 
                         let t = $name :: $req_name ( t );
 
-                        let send_fut = self.rpc_enum_send(t);
+                        let send_fut = self.rpc_chan_send(t);
 
                         use ::futures::future::FutureExt;
 
@@ -123,7 +124,7 @@ macro_rules! rpc_enum {
             }
 
             impl [< $name Send >] for ::futures::channel::mpsc::Sender<$name> {
-                fn rpc_enum_send(&mut self, item: $name) -> ::must_future::MustBoxFuture<'_, RpcEnumResult<()>> {
+                fn rpc_chan_send(&mut self, item: $name) -> ::must_future::MustBoxFuture<'_, RpcChanResult<()>> {
                     use ::futures::{
                         future::FutureExt,
                         sink::SinkExt,

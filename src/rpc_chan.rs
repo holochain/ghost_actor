@@ -1,53 +1,67 @@
-/// RpcEnum error type.
+/// RpcChan error type.
 #[derive(Debug, thiserror::Error)]
-pub enum RpcEnumError {
+pub enum RpcChanError {
+    /// Failed to send on channel
     SendError(#[from] futures::channel::mpsc::SendError),
+
+    /// Error sending response
     ResponseError(#[from] futures::channel::oneshot::Canceled),
+
+    /// unspecified rpc chan error
     Other(String),
 }
 
-impl std::fmt::Display for RpcEnumError {
+impl std::fmt::Display for RpcChanError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{:?}", self)
     }
 }
 
-impl From<&str> for RpcEnumError {
+impl From<&str> for RpcChanError {
     fn from(s: &str) -> Self {
-        RpcEnumError::Other(s.to_string())
+        RpcChanError::Other(s.to_string())
     }
 }
 
-impl From<RpcEnumError> for () {
-    fn from(_: RpcEnumError) {}
+impl From<RpcChanError> for () {
+    fn from(_: RpcChanError) {}
 }
 
-pub type RpcEnumResult<T> = Result<T, RpcEnumError>;
+/// Result type for RcpChan code
+pub type RpcChanResult<T> = Result<T, RpcChanError>;
 
-pub type RpcEnumRespond<T> = Box<dyn FnOnce(T) -> RpcEnumResult<()> + 'static + Send>;
+/// Response callback for an RpcChan message
+pub type RpcChanRespond<T> = Box<dyn FnOnce(T) -> RpcChanResult<()> + 'static + Send>;
 
-pub struct RpcEnumType<I, O> {
+/// Container for RpcChan messages
+pub struct RpcChanItem<I, O> {
+    /// the request input type
     pub input: I,
-    pub respond: RpcEnumRespond<O>,
+
+    /// the response callback for responding to the request
+    pub respond: RpcChanRespond<O>,
+
+    /// a tracing span for logically following the request/response
     pub span: tracing::Span,
 }
 
-impl<I, O> std::fmt::Debug for RpcEnumType<I, O> {
+impl<I, O> std::fmt::Debug for RpcChanItem<I, O> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", "RpcEnumType")
+        write!(f, "{}", "RpcChanItem")
     }
 }
 
 #[macro_use]
-mod rpc_enum_macros;
-pub use rpc_enum_macros::*;
+mod rpc_chan_macros;
+pub use rpc_chan_macros::*;
 
-pub mod rpc_enum_example {
+/// example expansion of an `rpc_chan!` macro invocation to prove out documentation.
+pub mod rpc_chan_example {
     use super::*;
 
-    rpc_enum! {
+    rpc_chan! {
         name: pub MyEnum,
-        error: RpcEnumError,
+        error: RpcChanError,
         api: {
             TestMsg::test_msg("will respond with 'echo: input'", String, String),
             AddOne::add_one("will add 1 to input", u32, u32),
@@ -59,19 +73,19 @@ pub mod rpc_enum_example {
 mod tests {
     use super::*;
     use futures::stream::StreamExt;
-    use rpc_enum_example::*;
+    use rpc_chan_example::*;
 
     #[tokio::test]
-    async fn test_rpc_enum_can_call_and_respond() {
+    async fn test_rpc_chan_can_call_and_respond() {
         let (mut send, mut recv) = futures::channel::mpsc::channel(1);
 
         tokio::task::spawn(async move {
             while let Some(msg) = recv.next().await {
                 match msg {
-                    MyEnum::TestMsg(RpcEnumType { input, respond, .. }) => {
+                    MyEnum::TestMsg(RpcChanItem { input, respond, .. }) => {
                         respond(Ok(format!("echo: {}", input))).unwrap();
                     }
-                    MyEnum::AddOne(RpcEnumType { input, respond, .. }) => {
+                    MyEnum::AddOne(RpcChanItem { input, respond, .. }) => {
                         respond(Ok(input + 1)).unwrap();
                     }
                 }

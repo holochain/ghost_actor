@@ -24,6 +24,7 @@ pub mod example {
     /// Custom example error type.
     #[derive(Debug, thiserror::Error)]
     pub enum MyError {
+        /// custom errors must support `From<GhostActorError>`
         GhostActorError(#[from] crate::GhostActorError),
     }
 
