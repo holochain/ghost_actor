@@ -5,6 +5,7 @@
 //! # Example
 //!
 //! ```
+//! /*
 //! # use ghost_actor::example::MyError;
 //! ghost_actor::ghost_actor! {
 //!     name: pub MyActor,
@@ -55,6 +56,7 @@
 //! #         .threaded_scheduler()
 //! #         .build().unwrap().block_on(async_main());
 //! # }
+//! */
 //! ```
 
 mod types;

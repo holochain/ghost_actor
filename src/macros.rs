@@ -55,12 +55,9 @@ macro_rules! ghost_actor {
     ) => {
         $crate::ghost_chan! { @inner
             ($($vis)*), $name, $error, $( $doc, $req_name, $req_fname, $req_type, $res_type ),*,
-            "custom", __GhostActorCustom, __ghost_actor_custom, Box<dyn ::std::any::Any + 'static + Send>, Box<dyn ::std::any::Any + 'static + Send>,
-            "internal", __GhostActorInternal, __ghost_actor_internal, Box<dyn ::std::any::Any + 'static + Send>, Box<dyn ::std::any::Any + 'static + Send>,
-            "shutdown", __GhostActorShutdown, __ghost_actor_shutdown, (), ()
-        }
-        $crate::ghost_actor! { @inner_protocol
-            ($($vis)*), $name, $error, $( $doc, $req_name, $req_fname, $req_type, $res_type ),*
+            "custom", GhostActorCustom, ghost_actor_custom, Box<dyn ::std::any::Any + 'static + Send>, (),
+            "internal", GhostActorInternal, ghost_actor_internal, Box<dyn ::std::any::Any + 'static + Send>, (),
+            "shutdown", GhostActorShutdown, ghost_actor_shutdown, (), ()
         }
         $crate::ghost_actor! { @inner_handler
             ($($vis)*), $name, $error, $( $doc, $req_name, $req_fname, $req_type, $res_type ),*
@@ -68,61 +65,11 @@ macro_rules! ghost_actor {
         $crate::ghost_actor! { @inner_sender
             ($($vis)*), $name, $error, $( $doc, $req_name, $req_fname, $req_type, $res_type ),*
         }
+        /*
         $crate::ghost_actor! { @inner_internal_sender
             ($($vis)*), $name, $error, $( $doc, $req_name, $req_fname, $req_type, $res_type ),*
         }
-    };
-
-    // -- "protocol" arm writes our protocol enum -- //
-
-    ( @inner_protocol
-        ($($vis:tt)*), $name:ident, $error:ty,
-        $( $doc:expr, $req_name:ident, $req_fname:ident, $req_type:ty, $res_type:ty ),*
-    ) => {
-        paste::item! {
-            #[derive(Debug)]
-            #[allow(dead_code, non_camel_case_types)]
-            #[doc = "GhostActor internal protocol enum."]
-            enum [< __ $name Protocol >] {
-                __GhostActorShutdown(
-                    ::futures::channel::oneshot::Sender<(
-                        ::std::result::Result<(), $error>,
-                        ::tracing::Span,
-                    )>,
-                    ::tracing::Span,
-                ),
-                __GhostActorCustom(
-                    Box<dyn ::std::any::Any + 'static + Send>,
-                    ::futures::channel::oneshot::Sender<
-                        ::std::result::Result<
-                            Box<dyn ::std::any::Any + 'static + Send>,
-                            $error,
-                        >
-                    >,
-                    ::tracing::Span,
-                ),
-                __GhostActorInternal(
-                    Box<dyn ::std::any::Any + 'static + Send>,
-                    ::futures::channel::oneshot::Sender<
-                        ::std::result::Result<
-                            Box<dyn ::std::any::Any + 'static + Send>,
-                            $error,
-                        >
-                    >,
-                    ::tracing::Span,
-                ),
-                $(
-                    $req_name (
-                        $req_type,
-                        ::futures::channel::oneshot::Sender<(
-                            ::std::result::Result<$res_type, $error>,
-                            ::tracing::Span,
-                        )>,
-                        ::tracing::Span,
-                    ),
-                )*
-            }
-        }
+        */
     };
 
     // -- "handler" arm writes our handler trait -- //
@@ -142,7 +89,7 @@ macro_rules! ghost_actor {
                 $(
                     #[doc = $doc]
                     fn [< handle_ $req_fname >] (
-                        &mut self, internal_sender: &mut [< $name InternalSender >] <C, I>, input: $req_type
+                        &mut self, /*internal_sender: &mut [< $name InternalSender >] <C, I>,*/ input: $req_type
                     ) -> ::std::result::Result<$res_type, $error>;
                 )*
 
@@ -151,7 +98,7 @@ macro_rules! ghost_actor {
                 #[allow(unused_variables)]
                 #[doc = "Handle custom messages specific to this exact actor implementation. The provided implementation panics with unimplemented!"]
                 fn handle_ghost_actor_custom(
-                    &mut self, internal_sender: &mut [< $name InternalSender >] <C, I>, input: C,
+                    &mut self, /*internal_sender: &mut [< $name InternalSender >] <C, I>,*/ input: C,
                 ) -> ::std::result::Result<
                     C::ResponseType,
                     $error,
@@ -162,7 +109,7 @@ macro_rules! ghost_actor {
                 #[allow(unused_variables)]
                 #[doc = "Handle internal messages specific to this exact actor implementation. The provided implementation panics with unimplemented!"]
                 fn handle_ghost_actor_internal(
-                    &mut self, internal_sender: &mut [< $name InternalSender >] <C, I>, input: I,
+                    &mut self, /*internal_sender: &mut [< $name InternalSender >] <C, I>,*/ input: I,
                 ) -> ::std::result::Result<
                     I::ResponseType,
                     $error,
@@ -173,6 +120,96 @@ macro_rules! ghost_actor {
         }
     };
 
+    // -- "sender" arm writes our sender struct -- //
+
+    ( @inner_sender
+        ($($vis:tt)*), $name:ident, $error:ty,
+        $( $doc:expr, $req_name:ident, $req_fname:ident, $req_type:ty, $res_type:ty ),*
+    ) => {
+        paste::item! {
+            #[doc = "Helper for ghost_actor Sender custom."]
+            $($vis)* struct [< $name CustomSender >] <'lt, C>
+            where
+                C: 'static + Send,
+            {
+                sender: &'lt mut ::futures::channel::mpsc::Sender<$name>,
+                phantom: ::std::marker::PhantomData<C>,
+            }
+
+            impl<C> $crate::GhostChanSend<C> for [< $name CustomSender >] <'_, C>
+            where
+                C: 'static + Send,
+            {
+                fn ghost_chan_send(&mut self, item: C) -> ::must_future::MustBoxFuture<'_, $crate::GhostResult<()>> {
+                    use ::futures::{future::FutureExt, sink::SinkExt};
+
+                    let input: Box<dyn ::std::any::Any + Send> = Box::new(item);
+
+                    // this item (if it is a GhostChan) already encapsulates
+                    // the response handling - send dummy no-op respond
+                    let item = $crate::GhostChanItem {
+                        input,
+                        respond: Box::new(|_| Ok(())),
+                        span: tracing::trace_span!("noop"),
+                    };
+
+                    let send_fut = self.sender.send(
+                        $name::GhostActorCustom(item)
+                    );
+
+                    async move {
+                        send_fut.await?;
+                        Ok(())
+                    }
+                    .boxed()
+                    .into()
+                }
+            }
+
+            #[doc = "A cheaply clone-able handle to control a ghost_actor task."]
+            #[derive(Clone)]
+            $($vis)* struct [< $name Sender >] <C>
+            where
+                C: 'static + Send,
+            {
+                sender: ::futures::channel::mpsc::Sender<$name>,
+                phantom: ::std::marker::PhantomData<C>,
+            }
+
+            impl<C> [< $name Sender >] <C>
+            where
+                C: 'static + Send,
+            {
+                $(
+                    #[doc = $doc]
+                    pub async fn $req_fname (
+                        &mut self, input: $req_type,
+                    ) -> ::std::result::Result<$res_type, $error> {
+                        use [< $name Send >];
+
+                        self.sender. $req_fname (input) .await
+                    }
+                )*
+
+                /// Send a custom message along to the ghost actor.
+                pub fn ghost_actor_custom(&mut self) -> [< $name CustomSender >] <'_, C> {
+                    [< $name CustomSender >] {
+                        sender: &mut self.sender,
+                        phantom: ::std::marker::PhantomData,
+                    }
+                }
+
+                /// Shutdown the actor.
+                pub async fn ghost_actor_shutdown(&mut self) -> ::std::result::Result<(), $error> {
+                    use [< $name Send >];
+
+                    self.sender.ghost_actor_shutdown(()).await
+                }
+            }
+        }
+    };
+
+    /*
     // -- "sender" arm writes our sender struct -- //
 
     ( @inner_sender
@@ -450,4 +487,5 @@ macro_rules! ghost_actor {
             }
         }
     };
+    */
 }

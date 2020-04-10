@@ -2,6 +2,7 @@
 /// Example usage for unit testing and showing documentation generation.
 ///
 /// ```
+/// /*
 /// use ghost_actor::example::MyError;
 /// ghost_actor::ghost_actor! {
 ///     name: pub MyActor,
@@ -19,6 +20,7 @@
 ///     }
 /// }
 /// # pub fn main() {}
+/// */
 /// ```
 pub mod example {
     /// Custom example error type.
@@ -60,6 +62,7 @@ pub mod example {
     }
 }
 
+/*
 #[cfg(test)]
 mod tests {
     use crate::*;
@@ -188,3 +191,4 @@ mod tests {
         );
     }
 }
+*/
