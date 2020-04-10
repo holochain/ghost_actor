@@ -30,20 +30,13 @@ impl From<GhostError> for () {
 /// Ghost result type.
 pub type GhostResult<T> = Result<T, GhostError>;
 
-/// Trait for specifying Custom and Internal request types for GhostActors.
-/// The only default impl is `()`, this may require you to create newtypes
-/// if you wish to use basic types for messaging.
-/// Pro tip: you can set the ResponseType to the same struct/enum
-/// as your GhostRequestType impl.
-pub trait GhostRequestType: 'static + Send + Clone {
-    /// When you make a request of this type, what will be the response type?
-    type ResponseType: 'static + Send + Clone;
-}
-
-impl GhostRequestType for () {
-    type ResponseType = ();
-}
-
 /// This future represents a spawned GhostActor task, you must await
 /// or spawn this task into an executor for the actor to function.
-pub type GhostActorDriver = ::futures::future::BoxFuture<'static, ()>;
+pub type GhostActorDriver = ::must_future::MustBoxFuture<'static, ()>;
+
+/// This is the factory callback signature for spawning new actor tasks.
+pub type GhostActorSpawn<I, H, E> = Box<
+    dyn FnOnce(I) -> ::must_future::MustBoxFuture<'static, std::result::Result<H, E>>
+        + 'static
+        + Send,
+>;

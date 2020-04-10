@@ -2,8 +2,23 @@
 /// Example usage for unit testing and showing documentation generation.
 ///
 /// ```
-/// /*
 /// use ghost_actor::example::MyError;
+/// ghost_actor::ghost_chan! {
+///     name: pub MyCustomChan,
+///     error: MyError,
+///     api: {
+///         TestMsg::test_msg("will respond with 'echo: input'", String, String),
+///     }
+/// }
+///
+/// ghost_actor::ghost_chan! {
+///     name: pub MyInternalChan,
+///     error: MyError,
+///     api: {
+///         TestMsg::test_msg("will respond with 'echo: input'", String, String),
+///     }
+/// }
+///
 /// ghost_actor::ghost_actor! {
 ///     name: pub MyActor,
 ///     error: MyError,
@@ -14,13 +29,15 @@
 ///         AddOne::add_one(
 ///             "A test function, output adds 1 to input.",
 ///             u32, u32),
-///         Stop::stop(
-///             "Calls internal shutdown() command.",
+///         FunkyInternal::funky_internal(
+///             "Makes an internal_sender request from outside. In reality, you'd never need a command like this.",
+///             String, must_future::MustBoxFuture<'static, String>),
+///         FunkyStop::funky_stop(
+///             "Calls internal ghost_actor_shutdown_immediate() command. In reality, you'd never need a command like this.",
 ///             (), ()),
 ///     }
 /// }
 /// # pub fn main() {}
-/// */
 /// ```
 pub mod example {
     /// Custom example error type.
@@ -37,11 +54,18 @@ pub mod example {
     }
 
     crate::ghost_chan! {
-        name: pub MyChan,
+        name: pub MyCustomChan,
         error: MyError,
         api: {
             TestMsg::test_msg("will respond with 'echo: input'", String, String),
-            AddOne::add_one("will add 1 to input", u32, u32),
+        }
+    }
+
+    crate::ghost_chan! {
+        name: pub MyInternalChan,
+        error: MyError,
+        api: {
+            TestMsg::test_msg("will respond with 'echo: input'", String, String),
         }
     }
 
@@ -55,81 +79,87 @@ pub mod example {
             AddOne::add_one(
                 "A test function, output adds 1 to input.",
                 u32, u32),
-            Stop::stop(
-                "Calls internal shutdown() command.",
+            FunkyInternal::funky_internal(
+                "Makes an internal_sender request from outside. In reality, you'd never need a command like this.",
+                String, must_future::MustBoxFuture<'static, String>),
+            FunkyStop::funky_stop(
+                "Calls internal ghost_actor_shutdown_immediate() command. In reality, you'd never need a command like this.",
                 (), ()),
         }
     }
 }
 
-/*
 #[cfg(test)]
 mod tests {
     use crate::*;
     use example::*;
 
-    #[tokio::test]
-    async fn test_ghost_chan_can_call_and_respond() {
-        use futures::stream::StreamExt;
-
-        let (mut send, mut recv) = futures::channel::mpsc::channel(1);
-
-        tokio::task::spawn(async move {
-            while let Some(msg) = recv.next().await {
-                match msg {
-                    MyChan::TestMsg(GhostChanItem { input, respond, .. }) => {
-                        respond(Ok(format!("echo: {}", input))).unwrap();
-                    }
-                    MyChan::AddOne(GhostChanItem { input, respond, .. }) => {
-                        respond(Ok(input + 1)).unwrap();
-                    }
-                }
-            }
-        });
-
-        let r = send.test_msg("hello1".to_string()).await.unwrap();
-        assert_eq!("echo: hello1", &r);
-
-        let r = send.add_one(42).await.unwrap();
-        assert_eq!(43, r);
+    /// An example implementation of the example MyActor GhostActor.
+    struct MyActorImpl {
+        internal_sender: MyActorInternalSender<MyCustomChan, MyInternalChan>,
     }
 
-    /// An example implementation of the example MyActor GhostActor.
-    struct MyActorImpl;
-
-    impl MyActorHandler<(), ()> for MyActorImpl {
-        fn handle_test_message(
-            &mut self,
-            _: &mut MyActorInternalSender<(), ()>,
-            input: String,
-        ) -> Result<String, MyError> {
+    impl MyActorHandler<MyCustomChan, MyInternalChan> for MyActorImpl {
+        fn handle_test_message(&mut self, input: String) -> Result<String, MyError> {
             Ok(format!("echo: {}", input))
         }
 
-        fn handle_add_one(
-            &mut self,
-            _: &mut MyActorInternalSender<(), ()>,
-            input: u32,
-        ) -> Result<u32, MyError> {
+        fn handle_add_one(&mut self, input: u32) -> Result<u32, MyError> {
             Ok(input + 1)
         }
 
-        fn handle_stop(
+        fn handle_funky_internal(
             &mut self,
-            internal: &mut MyActorInternalSender<(), ()>,
-            _: (),
-        ) -> Result<(), MyError> {
-            internal.shutdown();
+            input: String,
+        ) -> Result<must_future::MustBoxFuture<'static, String>, MyError> {
+            use futures::future::FutureExt;
+
+            let mut i_s = self.internal_sender.clone();
+            Ok(
+                async move { i_s.ghost_actor_internal().test_msg(input).await.unwrap() }
+                    .boxed()
+                    .into(),
+            )
+        }
+
+        fn handle_funky_stop(&mut self, _: ()) -> Result<(), MyError> {
+            self.internal_sender.ghost_actor_shutdown_immediate();
             Ok(())
+        }
+
+        fn handle_ghost_actor_custom(&mut self, input: MyCustomChan) {
+            match input {
+                MyCustomChan::TestMsg(GhostChanItem { input, respond, .. }) => {
+                    respond(Ok(format!("custom respond to: {}", input))).unwrap();
+                }
+            }
+        }
+
+        fn handle_ghost_actor_internal(&mut self, input: MyInternalChan) {
+            match input {
+                MyInternalChan::TestMsg(GhostChanItem { input, respond, .. }) => {
+                    respond(Ok(format!("internal respond to: {}", input))).unwrap();
+                }
+            }
         }
     }
 
     impl MyActorImpl {
         /// Rather than using ghost_actor_spawn directly, use this simple spawn.
-        pub fn spawn() -> MyActorSender<()> {
-            let (sender, driver) = MyActorSender::ghost_actor_spawn(MyActorImpl);
+        pub async fn spawn() -> Result<MyActorSender<MyCustomChan>, MyError> {
+            use futures::future::FutureExt;
+            let (sender, driver) = MyActorSender::ghost_actor_spawn(Box::new(|i_s| {
+                async move {
+                    Ok(MyActorImpl {
+                        internal_sender: i_s,
+                    })
+                }
+                .boxed()
+                .into()
+            }))
+            .await?;
             tokio::task::spawn(driver);
-            sender
+            Ok(sender)
         }
     }
 
@@ -146,7 +176,7 @@ mod tests {
     async fn it_check_echo() {
         init_tracing();
 
-        let mut sender = MyActorImpl::spawn();
+        let mut sender = MyActorImpl::spawn().await.unwrap();
 
         assert_eq!(
             "echo: test",
@@ -158,16 +188,44 @@ mod tests {
     async fn it_check_add_1() {
         init_tracing();
 
-        let mut sender = MyActorImpl::spawn();
+        let mut sender = MyActorImpl::spawn().await.unwrap();
 
-        assert_eq!(43, sender.add_one(42).await.unwrap(),);
+        assert_eq!(43, sender.add_one(42).await.unwrap());
+    }
+
+    #[tokio::test]
+    async fn it_check_custom() {
+        init_tracing();
+
+        let mut sender = MyActorImpl::spawn().await.unwrap();
+
+        assert_eq!(
+            "custom respond to: c_test",
+            &sender
+                .ghost_actor_custom()
+                .test_msg("c_test".into())
+                .await
+                .unwrap()
+        );
+    }
+
+    #[tokio::test]
+    async fn it_check_internal() {
+        init_tracing();
+
+        let mut sender = MyActorImpl::spawn().await.unwrap();
+
+        assert_eq!(
+            "internal respond to: i_test",
+            &sender.funky_internal("i_test".into()).await.unwrap().await,
+        );
     }
 
     #[tokio::test]
     async fn it_check_shutdown() {
         init_tracing();
 
-        let mut sender = MyActorImpl::spawn();
+        let mut sender = MyActorImpl::spawn().await.unwrap();
 
         sender.ghost_actor_shutdown().await.unwrap();
 
@@ -178,12 +236,12 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn it_check_custom_stop() {
+    async fn it_check_internal_shutdown() {
         init_tracing();
 
-        let mut sender = MyActorImpl::spawn();
+        let mut sender = MyActorImpl::spawn().await.unwrap();
 
-        sender.stop(()).await.unwrap();
+        sender.funky_stop(()).await.unwrap();
 
         assert_eq!(
             "Err(GhostError(SendError(SendError { kind: Disconnected })))",
@@ -191,4 +249,3 @@ mod tests {
         );
     }
 }
-*/
