@@ -76,7 +76,7 @@ macro_rules! ghost_actor {
         ($($vis:tt)*), $name:ident, $error:ty,
         $( $doc:expr, $req_name:ident, $req_fname:ident, $req_type:ty, $res_type:ty ),*
     ) => {
-        paste::item! {
+        $crate::dependencies::paste::item! {
             #[doc = "Implement this trait to process incoming actor messages."]
             $($vis)* trait [< $name Handler >] <
                 C: 'static + Send,
@@ -118,13 +118,13 @@ macro_rules! ghost_actor {
         ($($vis:tt)*), $name:ident, $error:ty,
         $( $doc:expr, $req_name:ident, $req_fname:ident, $req_type:ty, $res_type:ty ),*
     ) => {
-        paste::item! {
+        $crate::dependencies::paste::item! {
             #[doc = "Helper for ghost_actor Sender custom."]
             $($vis)* struct [< $name Helper >] <'lt, C>
             where
                 C: 'static + Send,
             {
-                sender: &'lt mut ::futures::channel::mpsc::Sender<$name>,
+                sender: &'lt mut $crate::dependencies::futures::channel::mpsc::Sender<$name>,
                 is_internal: bool,
                 phantom: ::std::marker::PhantomData<C>,
             }
@@ -133,8 +133,8 @@ macro_rules! ghost_actor {
             where
                 C: 'static + Send,
             {
-                fn ghost_chan_send(&mut self, item: C) -> ::must_future::MustBoxFuture<'_, $crate::GhostResult<()>> {
-                    use ::futures::{future::FutureExt, sink::SinkExt};
+                fn ghost_chan_send(&mut self, item: C) -> $crate::dependencies::must_future::MustBoxFuture<'_, $crate::GhostResult<()>> {
+                    use $crate::dependencies::futures::{future::FutureExt, sink::SinkExt};
 
                     let input: Box<dyn ::std::any::Any + Send> = Box::new(item);
 
@@ -143,7 +143,7 @@ macro_rules! ghost_actor {
                     let item = $crate::GhostChanItem {
                         input,
                         respond: Box::new(|_| Ok(())),
-                        span: tracing::trace_span!("noop"),
+                        span: $crate::dependencies::tracing::trace_span!("noop"),
                     };
 
                     let send_fut = match self.is_internal {
@@ -169,7 +169,7 @@ macro_rules! ghost_actor {
             where
                 C: 'static + Send,
             {
-                sender: ::futures::channel::mpsc::Sender<$name>,
+                sender: $crate::dependencies::futures::channel::mpsc::Sender<$name>,
                 phantom: ::std::marker::PhantomData<C>,
             }
 
@@ -204,7 +204,7 @@ macro_rules! ghost_actor {
                     I: 'static + Send,
                     H: [< $name Handler >] <C, I>,
                 {
-                    let (send, mut recv) = ::futures::channel::mpsc::channel(10);
+                    let (send, mut recv) = $crate::dependencies::futures::channel::mpsc::channel(10);
 
                     let sender = Self {
                         sender: send,
@@ -225,7 +225,7 @@ macro_rules! ghost_actor {
 
                     let mut handler = factory(internal_sender).await?;
 
-                    use ::futures::{
+                    use $crate::dependencies::futures::{
                         future::FutureExt,
                         stream::StreamExt,
                     };
@@ -320,7 +320,7 @@ macro_rules! ghost_actor {
         ($($vis:tt)*), $name:ident, $error:ty,
         $( $doc:expr, $req_name:ident, $req_fname:ident, $req_type:ty, $res_type:ty ),*
     ) => {
-        paste::item! {
+        $crate::dependencies::paste::item! {
             #[doc = "The InternalSender accessible from within handlers."]
             $($vis)* struct [< $name InternalSender >] <C, I>
             where

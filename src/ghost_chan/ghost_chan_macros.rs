@@ -87,38 +87,38 @@ macro_rules! ghost_chan {
         ($($vis:tt)*), $name:ident, $error:ty,
         $( $doc:expr, $req_name:ident, $req_fname:ident, $req_type:ty, $res_type:ty ),*
     ) => {
-        paste::item! {
+        $crate::dependencies::paste::item! {
             #[doc = "GhostChan protocol enum send trait."]
             $($vis)* trait [< $name Send >]: $crate::GhostChanSend<$name> {
                 $(
                     #[ doc = $doc ]
-                    fn $req_fname ( &mut self, input: $req_type ) -> ::must_future::MustBoxFuture<'_, ::std::result::Result<$res_type, $error>> {
-                        tracing::trace!(request = ?input);
-                        let (send, recv) = ::futures::channel::oneshot::channel();
+                    fn $req_fname ( &mut self, input: $req_type ) -> $crate::dependencies::must_future::MustBoxFuture<'_, ::std::result::Result<$res_type, $error>> {
+                        $crate::dependencies::tracing::trace!(request = ?input);
+                        let (send, recv) = $crate::dependencies::futures::channel::oneshot::channel();
                         let t = $crate::GhostChanItem {
                             input,
                             respond: Box::new(move |res| {
-                                if let Err(_) = send.send((res, tracing::debug_span!(
+                                if let Err(_) = send.send((res, $crate::dependencies::tracing::debug_span!(
                                     concat!(stringify!($req_fname), "_respond")
                                 ))) {
                                     return Err($crate::GhostError::from("send error"));
                                 }
                                 Ok(())
                             }),
-                            span: tracing::debug_span!(stringify!($req_fname)),
+                            span: $crate::dependencies::tracing::debug_span!(stringify!($req_fname)),
                         };
 
                         let t = $name :: $req_name ( t );
 
                         let send_fut = self.ghost_chan_send(t);
 
-                        use ::futures::future::FutureExt;
+                        use $crate::dependencies::futures::future::FutureExt;
 
                         async move {
                             send_fut.await?;
                             let (data, span) = recv.await.map_err($crate::GhostError::from)?;
                             let _g = span.enter();
-                            tracing::trace!(response = ?data);
+                            $crate::dependencies::tracing::trace!(response = ?data);
                             data
                         }.boxed().into()
                     }
