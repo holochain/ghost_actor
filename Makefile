@@ -15,7 +15,7 @@ all: test
 publish: tools
 	git diff --exit-code
 	cargo publish
-	VER="v$$(grep version Cargo.toml | cut -d ' ' -f 3 | cut -d \" -f 2)"; git tag -a $$VER -m $$VER
+	VER="v$$(grep version Cargo.toml | head -1 | cut -d ' ' -f 3 | cut -d \" -f 2)"; git tag -a $$VER -m $$VER
 	git push --tags
 
 test: tools
