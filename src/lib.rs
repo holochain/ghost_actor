@@ -6,6 +6,7 @@
 //!
 //! ```
 //! # use ghost_actor::example::MyError;
+//! # use ghost_actor::dependencies::futures::future::FutureExt;
 //! ghost_actor::ghost_actor! {
 //!     name: pub MyActor,
 //!     error: MyError,
@@ -23,8 +24,10 @@
 //!     fn handle_add_one(
 //!         &mut self,
 //!         input: u32,
-//!     ) -> Result<u32, MyError> {
-//!         Ok(input + 1)
+//!     ) -> MyActorHandlerResult<u32> {
+//!         Ok(async move {
+//!             Ok(input + 1)
+//!         }.boxed().into())
 //!     }
 //! }
 //!
