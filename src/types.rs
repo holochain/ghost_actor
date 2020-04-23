@@ -27,7 +27,7 @@ impl From<GhostError> for () {
     fn from(_: GhostError) {}
 }
 
-/// Ghost result type.
+/// Ghost Result Type.
 pub type GhostResult<T> = Result<T, GhostError>;
 
 /// This future represents a spawned GhostActor task, you must await

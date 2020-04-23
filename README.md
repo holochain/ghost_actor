@@ -25,8 +25,10 @@ impl MyActorHandler<(), ()> for MyActorImpl {
     fn handle_add_one(
         &mut self,
         input: u32,
-    ) -> Result<u32, MyError> {
-        Ok(input + 1)
+    ) -> MyActorHandlerResult<u32> {
+        Ok(async move {
+            Ok(input + 1)
+        }.boxed().into())
     }
 }
 

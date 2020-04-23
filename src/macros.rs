@@ -53,40 +53,74 @@ macro_rules! ghost_actor {
         ($($vis:tt)*), $name:ident, $error:ty,
         $( $doc:expr, $req_name:ident, $req_fname:ident, $req_type:ty, $res_type:ty ),*
     ) => {
+        $crate::ghost_actor! { @inner_types
+            ($($vis)*), $name, $error, $( $doc, $req_name, $req_fname, $req_type, $res_type ),*
+        }
+        $crate::dependencies::paste::item! {
+            $crate::ghost_actor! { @inner2
+                ($($vis)*), $name, $error, $( $doc, $req_name, $req_fname, $req_type, $res_type, [< $name Future >] <$res_type> ),*
+            }
+        }
+    };
+
+    // -- "inner2" has some slight type alterations -- //
+
+    ( @inner2
+        ($($vis:tt)*), $name:ident, $error:ty,
+        $( $doc:expr, $req_name:ident, $req_fname:ident, $req_type:ty, $res_type:ty, $res_type2:ty ),*
+    ) => {
         $crate::ghost_chan! { @inner
-            (/* not pub */), $name, $error, $( $doc, $req_name, $req_fname, $req_type, $res_type ),*,
+            (/* not pub */), $name, $error, $( $doc, $req_name, $req_fname, $req_type, $res_type2 ),*,
             "custom", GhostActorCustom, ghost_actor_custom, Box<dyn ::std::any::Any + 'static + Send>, (),
             "internal", GhostActorInternal, ghost_actor_internal, Box<dyn ::std::any::Any + 'static + Send>, (),
             "shutdown", GhostActorShutdown, ghost_actor_shutdown, (), ()
         }
         $crate::ghost_actor! { @inner_handler
-            ($($vis)*), $name, $error, $( $doc, $req_name, $req_fname, $req_type, $res_type ),*
+            ($($vis)*), $name, $error, $( $doc, $req_name, $req_fname, $req_type, $res_type, $res_type2 ),*
         }
         $crate::ghost_actor! { @inner_sender
-            ($($vis)*), $name, $error, $( $doc, $req_name, $req_fname, $req_type, $res_type ),*
+            ($($vis)*), $name, $error, $( $doc, $req_name, $req_fname, $req_type, $res_type, $res_type2 ),*
         }
         $crate::ghost_actor! { @inner_internal_sender
-            ($($vis)*), $name, $error, $( $doc, $req_name, $req_fname, $req_type, $res_type ),*
+            ($($vis)*), $name, $error, $( $doc, $req_name, $req_fname, $req_type, $res_type, $res_type2 ),*
+        }
+    };
+
+    // -- "types" arm writes our helper typedefs -- //
+
+    ( @inner_types
+        ($($vis:tt)*), $name:ident, $error:ty,
+        $( $doc:expr, $req_name:ident, $req_fname:ident, $req_type:ty, $res_type:ty ),*
+    ) => {
+        $crate::dependencies::paste::item! {
+            /// Result Type.
+            $($vis)* type [< $name Result >] <T> = ::std::result::Result<T, $error>;
+
+            /// Future Type.
+            $($vis)* type [< $name Future >] <T> = ::must_future::MustBoxFuture<'static, [< $name Result >] <T> >;
+
+            /// Handler Result Type.
+            $($vis)* type [< $name HandlerResult >] <T> = ::std::result::Result<[< $name Future >] <T>, $error>;
         }
     };
 
     // -- helpers for writing the handler trait functions -- //
 
-    ( @inner_helper_handler $doc:expr, $req_fname:ident, (), $res_type:ty, $error:ty ) => {
+    ( @inner_helper_handler $name:ident, $doc:expr, $req_fname:ident, (), $res_type:ty ) => {
         $crate::dependencies::paste::item! {
             #[doc = $doc]
             fn [< handle_ $req_fname >] (
                 &mut self
-            ) -> ::std::result::Result<$res_type, $error>;
+            ) -> [< $name HandlerResult >] <$res_type>;
         }
     };
 
-    ( @inner_helper_handler $doc:expr, $req_fname:ident, $req_type:ty, $res_type:ty, $error:ty ) => {
+    ( @inner_helper_handler $name:ident, $doc:expr, $req_fname:ident, $req_type:ty, $res_type:ty ) => {
         $crate::dependencies::paste::item! {
             #[doc = $doc]
             fn [< handle_ $req_fname >] (
                 &mut self, input: $req_type,
-            ) -> ::std::result::Result<$res_type, $error>;
+            ) -> [< $name HandlerResult >] <$res_type>;
         }
     };
 
@@ -94,7 +128,7 @@ macro_rules! ghost_actor {
 
     ( @inner_handler
         ($($vis:tt)*), $name:ident, $error:ty,
-        $( $doc:expr, $req_name:ident, $req_fname:ident, $req_type:ty, $res_type:ty ),*
+        $( $doc:expr, $req_name:ident, $req_fname:ident, $req_type:ty, $res_type:ty, $res_type2:ty ),*
     ) => {
         $crate::dependencies::paste::item! {
             #[doc = "Implement this trait to process incoming actor messages."]
@@ -106,7 +140,7 @@ macro_rules! ghost_actor {
 
                 $(
                     $crate::ghost_actor! { @inner_helper_handler
-                        $doc, $req_fname, $req_type, $res_type, $error
+                        $name, $doc, $req_fname, $req_type, $res_type
                     }
                 )*
 
@@ -152,28 +186,28 @@ macro_rules! ghost_actor {
     // -- helpers for writing sender functions -- //
 
     ( @inner_helper_sender
-        $sender:ident, $doc:expr, $req_fname:ident, (), $res_type:ty, $error:ty
+        $sender:ident, $doc:expr, $req_fname:ident, (), $res_type:ty
     ) => {
         #[doc = $doc]
         pub async fn $req_fname (
             &mut self,
-        ) -> ::std::result::Result<$res_type, $error> {
+        ) -> $res_type {
             use $sender;
 
-            self.sender. $req_fname () .await
+            self.sender. $req_fname () .await?.await
         }
     };
 
     ( @inner_helper_sender
-        $sender:ident, $doc:expr, $req_fname:ident, $req_type:ty, $res_type:ty, $error:ty
+        $sender:ident, $doc:expr, $req_fname:ident, $req_type:ty, $res_type:ty
     ) => {
         #[doc = $doc]
         pub async fn $req_fname (
             &mut self, input: $req_type,
-        ) -> ::std::result::Result<$res_type, $error> {
+        ) -> $res_type {
             use $sender;
 
-            self.sender. $req_fname (input) .await
+            self.sender. $req_fname (input) .await?.await
         }
     };
 
@@ -181,7 +215,7 @@ macro_rules! ghost_actor {
 
     ( @inner_sender
         ($($vis:tt)*), $name:ident, $error:ty,
-        $( $doc:expr, $req_name:ident, $req_fname:ident, $req_type:ty, $res_type:ty ),*
+        $( $doc:expr, $req_name:ident, $req_fname:ident, $req_type:ty, $res_type:ty, $res_type2:ty ),*
     ) => {
         $crate::dependencies::paste::item! {
             #[doc = "Helper for ghost_actor Sender custom."]
@@ -265,7 +299,7 @@ macro_rules! ghost_actor {
                         H,
                         $error,
                     >,
-                ) -> ::std::result::Result<(Self, $crate::GhostActorDriver), $error>
+                ) -> [< $name Result >]<(Self, $crate::GhostActorDriver)>
                 where
                     I: 'static + Send,
                     H: [< $name Handler >] <C, I>,
@@ -349,7 +383,7 @@ macro_rules! ghost_actor {
 
                 $(
                     $crate::ghost_actor! { @inner_helper_sender
-                        [< $name Send >], $doc, $req_fname, $req_type, $res_type, $error
+                        [< $name Send >], $doc, $req_fname, $req_type, [< $name Result >] <$res_type>
                     }
                 )*
 
@@ -363,7 +397,7 @@ macro_rules! ghost_actor {
                 }
 
                 /// Shutdown the actor.
-                pub async fn ghost_actor_shutdown(&mut self) -> ::std::result::Result<(), $error> {
+                pub async fn ghost_actor_shutdown(&mut self) -> [< $name Result >] <()> {
                     use [< $name Send >];
 
                     self.sender.ghost_actor_shutdown().await
@@ -376,7 +410,7 @@ macro_rules! ghost_actor {
 
     ( @inner_internal_sender
         ($($vis:tt)*), $name:ident, $error:ty,
-        $( $doc:expr, $req_name:ident, $req_fname:ident, $req_type:ty, $res_type:ty ),*
+        $( $doc:expr, $req_name:ident, $req_fname:ident, $req_type:ty, $res_type:ty, $res_type2:ty ),*
     ) => {
         $crate::dependencies::paste::item! {
             #[doc = "The InternalSender accessible from within handlers."]
