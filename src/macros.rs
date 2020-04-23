@@ -97,7 +97,7 @@ macro_rules! ghost_actor {
             $($vis)* type [< $name Result >] <T> = ::std::result::Result<T, $error>;
 
             /// Future Type.
-            $($vis)* type [< $name Future >] <T> = ::must_future::MustBoxFuture<'static, [< $name Result >] <T> >;
+            $($vis)* type [< $name Future >] <T> = $crate::dependencies::must_future::MustBoxFuture<'static, [< $name Result >] <T> >;
 
             /// Handler Result Type.
             $($vis)* type [< $name HandlerResult >] <T> = ::std::result::Result<[< $name Future >] <T>, $error>;
