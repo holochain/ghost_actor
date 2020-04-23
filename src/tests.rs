@@ -122,7 +122,7 @@ mod tests {
             )
         }
 
-        fn handle_funky_stop(&mut self, _: ()) -> Result<(), MyError> {
+        fn handle_funky_stop(&mut self) -> Result<(), MyError> {
             self.internal_sender.ghost_actor_shutdown_immediate();
             Ok(())
         }
@@ -241,7 +241,7 @@ mod tests {
 
         let mut sender = MyActorImpl::spawn().await.unwrap();
 
-        sender.funky_stop(()).await.unwrap();
+        sender.funky_stop().await.unwrap();
 
         assert_eq!(
             "Err(GhostError(SendError(SendError { kind: Disconnected })))",

@@ -30,7 +30,7 @@ macro_rules! ghost_actor {
     (
         name: pub $name:ident,
         error: $error:ty,
-        api: { $( $req_name:ident :: $req_fname:ident ( $doc:expr, $req_type:ty, $res_type:ty ) ),*, }
+        api: { $( $req_name:ident :: $req_fname:ident ( $doc:expr, $req_type:ty, $res_type:ty ) ),* }
     ) => {
         $crate::ghost_actor! { @inner
             (pub), $name, $error, $( $doc, $req_name, $req_fname, $req_type, $res_type ),*
@@ -40,7 +40,7 @@ macro_rules! ghost_actor {
     (
         name: pub $name:ident,
         error: $error:ty,
-        api: { $( $req_name:ident :: $req_fname:ident ( $doc:expr, $req_type:ty, $res_type:ty ) ),* }
+        api: { $( $req_name:ident :: $req_fname:ident ( $doc:expr, $req_type:ty, $res_type:ty ) ),*, }
     ) => {
         $crate::ghost_actor! { @inner
             (pub), $name, $error, $( $doc, $req_name, $req_fname, $req_type, $res_type ),*
@@ -70,6 +70,26 @@ macro_rules! ghost_actor {
         }
     };
 
+    // -- helpers for writing the handler trait functions -- //
+
+    ( @inner_helper_handler $doc:expr, $req_fname:ident, (), $res_type:ty, $error:ty ) => {
+        $crate::dependencies::paste::item! {
+            #[doc = $doc]
+            fn [< handle_ $req_fname >] (
+                &mut self
+            ) -> ::std::result::Result<$res_type, $error>;
+        }
+    };
+
+    ( @inner_helper_handler $doc:expr, $req_fname:ident, $req_type:ty, $res_type:ty, $error:ty ) => {
+        $crate::dependencies::paste::item! {
+            #[doc = $doc]
+            fn [< handle_ $req_fname >] (
+                &mut self, input: $req_type,
+            ) -> ::std::result::Result<$res_type, $error>;
+        }
+    };
+
     // -- "handler" arm writes our handler trait -- //
 
     ( @inner_handler
@@ -85,10 +105,9 @@ macro_rules! ghost_actor {
                 // -- api handlers -- //
 
                 $(
-                    #[doc = $doc]
-                    fn [< handle_ $req_fname >] (
-                        &mut self, input: $req_type,
-                    ) -> ::std::result::Result<$res_type, $error>;
+                    $crate::ghost_actor! { @inner_helper_handler
+                        $doc, $req_fname, $req_type, $res_type, $error
+                    }
                 )*
 
                 // -- provided -- //
@@ -109,6 +128,52 @@ macro_rules! ghost_actor {
                     unimplemented!()
                 }
             }
+        }
+    };
+
+    // -- helpers for invoking the handler trait functions -- //
+
+    ( @inner_helper_invoke_handler $handler:ident, $hname:ident, $item:ident, () ) => {
+            let $crate::GhostChanItem {
+                respond, span, .. } = $item;
+            let _g = span.enter();
+            let result = $handler.$hname();
+            let _ = respond(result);
+    };
+
+    ( @inner_helper_invoke_handler $handler:ident, $hname:ident, $item:ident, $req_type:ty ) => {
+            let $crate::GhostChanItem {
+                input, respond, span } = $item;
+            let _g = span.enter();
+            let result = $handler.$hname(input);
+            let _ = respond(result);
+    };
+
+    // -- helpers for writing sender functions -- //
+
+    ( @inner_helper_sender
+        $sender:ident, $doc:expr, $req_fname:ident, (), $res_type:ty, $error:ty
+    ) => {
+        #[doc = $doc]
+        pub async fn $req_fname (
+            &mut self,
+        ) -> ::std::result::Result<$res_type, $error> {
+            use $sender;
+
+            self.sender. $req_fname () .await
+        }
+    };
+
+    ( @inner_helper_sender
+        $sender:ident, $doc:expr, $req_fname:ident, $req_type:ty, $res_type:ty, $error:ty
+    ) => {
+        #[doc = $doc]
+        pub async fn $req_fname (
+            &mut self, input: $req_type,
+        ) -> ::std::result::Result<$res_type, $error> {
+            use $sender;
+
+            self.sender. $req_fname (input) .await
         }
     };
 
@@ -146,13 +211,14 @@ macro_rules! ghost_actor {
                         span: $crate::dependencies::tracing::trace_span!("noop"),
                     };
 
-                    let send_fut = match self.is_internal {
-                        true => self.sender.send(
+                    let send_fut = if self.is_internal {
+                        self.sender.send(
                             $name::GhostActorInternal(item)
-                        ),
-                        false => self.sender.send(
+                        )
+                    } else {
+                        self.sender.send(
                             $name::GhostActorCustom(item)
-                        ),
+                        )
                     };
 
                     async move {
@@ -262,12 +328,9 @@ macro_rules! ghost_actor {
                                 }
                                 $(
                                     $name::$req_name(item) => {
-                                        let $crate::GhostChanItem {
-                                            input, respond, span } = item;
-                                        let _g = span.enter();
-                                        let result = handler
-                                            . [< handle_ $req_fname >](input);
-                                        let _ = respond(result);
+                                        $crate::ghost_actor! { @inner_helper_invoke_handler
+                                            handler, [< handle_ $req_fname >], item, $req_type
+                                        }
                                     }
                                 )*
                             };
@@ -285,13 +348,8 @@ macro_rules! ghost_actor {
                 }
 
                 $(
-                    #[doc = $doc]
-                    pub async fn $req_fname (
-                        &mut self, input: $req_type,
-                    ) -> ::std::result::Result<$res_type, $error> {
-                        use [< $name Send >];
-
-                        self.sender. $req_fname (input) .await
+                    $crate::ghost_actor! { @inner_helper_sender
+                        [< $name Send >], $doc, $req_fname, $req_type, $res_type, $error
                     }
                 )*
 
@@ -308,7 +366,7 @@ macro_rules! ghost_actor {
                 pub async fn ghost_actor_shutdown(&mut self) -> ::std::result::Result<(), $error> {
                     use [< $name Send >];
 
-                    self.sender.ghost_actor_shutdown(()).await
+                    self.sender.ghost_actor_shutdown().await
                 }
             }
         }
