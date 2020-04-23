@@ -39,7 +39,7 @@ pub struct GhostChanItem<I, O> {
 
 impl<I, O> std::fmt::Debug for GhostChanItem<I, O> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", "GhostChanItem")
+        write!(f, "GhostChanItem")
     }
 }
 
