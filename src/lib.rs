@@ -21,17 +21,20 @@
 //! # use ghost_actor::example::MyError;
 //! # use ghost_actor::dependencies::futures::future::FutureExt;
 //! ghost_actor::ghost_actor! {
-//!     // set visibility and name your actor
-//!     name: pub MyActor,
+//!     // set the visibility of your actor - `()` for private.
+//!     Visibility(pub),
+//!
+//!     // name your actor
+//!     Name(MyActor),
 //!
 //!     // any custom error set here must implement `From<GhostError>`
-//!     error: MyError,
+//!     Error(MyError),
 //!
 //!     // specify your actor api
-//!     api: {
-//!         // someday if the `paste` crate supported inflection
-//!         // we won't have to specify both inflections here.
-//!         AddOne::add_one(
+//!     Api {
+//!         // Method names will be transformed into snake_case,
+//!         // so, this method will be called "add_one".
+//!         AddOne(
 //!             // this string will be applied as docs to sender/handler
 //!             "A test function, output adds 1 to input.",
 //!
@@ -39,7 +42,7 @@
 //!             u32,
 //!
 //!             // the output type for your api
-//!             u32
+//!             u32,
 //!         ),
 //!     }
 //! }
