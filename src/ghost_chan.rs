@@ -1,9 +1,12 @@
+//! The `ghost_chan!` macro generates an enum and helper types that make it
+//! easy to make inline async requests and await responses.
+
 use crate::*;
 
-/// Response callback for an GhostChan message
+/// Response callback for an GhostChan message.
 pub type GhostChanRespond<T> = Box<dyn FnOnce(T) -> GhostResult<()> + 'static + Send>;
 
-/// Sender trait for GhostChan Send subtraits
+/// Sender trait for GhostChan Send subtraits.
 pub trait GhostChanSend<T: 'static + Send> {
     /// Implement this in your sender newtype to forward GhostChan messages across a
     /// channel.
@@ -25,15 +28,15 @@ impl<T: 'static + Send> GhostChanSend<T> for ::futures::channel::mpsc::Sender<T>
     }
 }
 
-/// Container for GhostChan messages
+/// Container type for GhostChan message variants.
 pub struct GhostChanItem<I, O> {
-    /// the request input type
+    /// The request input type.
     pub input: I,
 
-    /// the response callback for responding to the request
+    /// The response callback for responding to the request.
     pub respond: GhostChanRespond<O>,
 
-    /// a tracing span for logically following the request/response
+    /// A tracing span for logically following the request/response.
     pub span: tracing::Span,
 }
 

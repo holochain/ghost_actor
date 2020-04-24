@@ -1,5 +1,4 @@
-/// The main workhorse macro for constructing GhostActors.
-/// This will define the protocol for building GhostActors.
+/// Call `ghost_actor!` to generate the boilerplate for GhostActor implementations.
 #[macro_export]
 macro_rules! ghost_actor {
     // using @inner_ self references so we don't have to export / pollute
@@ -168,7 +167,7 @@ macro_rules! ghost_actor {
     // -- helpers for invoking the handler trait functions -- //
 
     ( @inner_helper_invoke_handler $handler:ident, $hname:ident, $item:ident, () ) => {
-            let $crate::GhostChanItem {
+            let $crate::ghost_chan::GhostChanItem {
                 respond, span, .. } = $item;
             let _g = span.enter();
             let result = $handler.$hname();
@@ -176,7 +175,7 @@ macro_rules! ghost_actor {
     };
 
     ( @inner_helper_invoke_handler $handler:ident, $hname:ident, $item:ident, $req_type:ty ) => {
-            let $crate::GhostChanItem {
+            let $crate::ghost_chan::GhostChanItem {
                 input, respond, span } = $item;
             let _g = span.enter();
             let result = $handler.$hname(input);
@@ -228,7 +227,7 @@ macro_rules! ghost_actor {
                 phantom: ::std::marker::PhantomData<C>,
             }
 
-            impl<C> $crate::GhostChanSend<C> for [< $name Helper >] <'_, C>
+            impl<C> $crate::ghost_chan::GhostChanSend<C> for [< $name Helper >] <'_, C>
             where
                 C: 'static + Send,
             {
@@ -305,7 +304,7 @@ macro_rules! ghost_actor {
                         while let Some(proto) = recv.next().await {
                             match proto {
                                 $name::GhostActorShutdown(item) => {
-                                    let $crate::GhostChanItem {
+                                    let $crate::ghost_chan::GhostChanItem {
                                         respond, span, .. } = item;
                                     let _g = span.enter();
                                     *shutdown
@@ -315,7 +314,7 @@ macro_rules! ghost_actor {
                                     let _ = respond(Ok(()));
                                 }
                                 $name::GhostActorCustom(item) => {
-                                    let $crate::GhostChanItem {
+                                    let $crate::ghost_chan::GhostChanItem {
                                         input, respond, span } = item;
                                     let _g = span.enter();
                                     match input.downcast::<C>() {
@@ -330,7 +329,7 @@ macro_rules! ghost_actor {
                                     }
                                 }
                                 $name::GhostActorInternal(item) => {
-                                    let $crate::GhostChanItem {
+                                    let $crate::ghost_chan::GhostChanItem {
                                         input, respond, span } = item;
                                     let _g = span.enter();
                                     let input = input.downcast::<I>()
