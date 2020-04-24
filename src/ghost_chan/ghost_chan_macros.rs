@@ -1,6 +1,5 @@
-/// GhostChan provides a basis for constructing GhostChannels and eventually
-/// GhostActors. GhostChan provides differentiated constructor functions,
-/// that generate appropriate input and async await output types.
+/// The `ghost_chan!` macro generates an enum and helper types that make it
+/// easy to make inline async requests and await responses.
 #[macro_export]
 macro_rules! ghost_chan {
     // using @inner_ self references so we don't have to export / pollute
@@ -73,7 +72,7 @@ macro_rules! ghost_chan {
         $($vis)* enum $name {
             $(
                 #[doc = $doc]
-                $req_name ($crate::GhostChanItem<
+                $req_name ($crate::ghost_chan::GhostChanItem<
                     $req_type,
                     ::std::result::Result<$res_type, $error>,
                 >),
@@ -115,11 +114,11 @@ macro_rules! ghost_chan {
                     input: $req_type,
                 ) -> $crate::dependencies::must_future::MustBoxFuture<'lt, ::std::result::Result<$res_type, $error>>
                 where
-                    S: $crate::GhostChanSend<$name> + ?Sized,
+                    S: $crate::ghost_chan::GhostChanSend<$name> + ?Sized,
                 {
                     $crate::dependencies::tracing::trace!(request = ?input);
                     let (send, recv) = $crate::dependencies::futures::channel::oneshot::channel();
-                    let t = $crate::GhostChanItem {
+                    let t = $crate::ghost_chan::GhostChanItem {
                         input,
                         respond: Box::new(move |res| {
                             if send.send((res, $crate::dependencies::tracing::debug_span!(
@@ -149,7 +148,7 @@ macro_rules! ghost_chan {
             )*
 
             #[doc = "GhostChan protocol enum send trait."]
-            $($vis)* trait [< $name Send >]: $crate::GhostChanSend<$name> {
+            $($vis)* trait [< $name Send >]: $crate::ghost_chan::GhostChanSend<$name> {
                 $(
                     $crate::ghost_chan! { @inner_helper_sender
                         [< __ghost_chan_ $name _ $req_fname >],
@@ -158,7 +157,7 @@ macro_rules! ghost_chan {
                 )*
             }
 
-            impl<T: $crate::GhostChanSend<$name>> [< $name Send >] for T {}
+            impl<T: $crate::ghost_chan::GhostChanSend<$name>> [< $name Send >] for T {}
         }
     };
 }
