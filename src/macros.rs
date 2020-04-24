@@ -7,42 +7,13 @@ macro_rules! ghost_actor {
     // -- public api arms -- //
 
     (
-        name: $name:ident,
-        error: $error:ty,
-        api: { $( $req_name:ident :: $req_fname:ident ( $doc:expr, $req_type:ty, $res_type:ty ) ),* }
+        Visibility($($vis:tt)*),
+        Name($name:ident),
+        Error($error:ty),
+        Api { $( $req_name:ident ( $doc:expr, $req_type:ty, $res_type:ty, ) ),*, }
     ) => {
         $crate::ghost_actor! { @inner
-            (), $name, $error, $( $doc, $req_name, $req_fname, $req_type, $res_type ),*
-        }
-    };
-
-    (
-        name: $name:ident,
-        error: $error:ty,
-        api: { $( $req_name:ident :: $req_fname:ident ( $doc:expr, $req_type:ty, $res_type:ty ) ),*, }
-    ) => {
-        $crate::ghost_actor! { @inner
-            (), $name, $error, $( $doc, $req_name, $req_fname, $req_type, $res_type ),*
-        }
-    };
-
-    (
-        name: pub $name:ident,
-        error: $error:ty,
-        api: { $( $req_name:ident :: $req_fname:ident ( $doc:expr, $req_type:ty, $res_type:ty ) ),* }
-    ) => {
-        $crate::ghost_actor! { @inner
-            (pub), $name, $error, $( $doc, $req_name, $req_fname, $req_type, $res_type ),*
-        }
-    };
-
-    (
-        name: pub $name:ident,
-        error: $error:ty,
-        api: { $( $req_name:ident :: $req_fname:ident ( $doc:expr, $req_type:ty, $res_type:ty ) ),*, }
-    ) => {
-        $crate::ghost_actor! { @inner
-            (pub), $name, $error, $( $doc, $req_name, $req_fname, $req_type, $res_type ),*
+            ($($vis)*), $name, $error, $( $doc, $req_name, $req_type, $res_type ),*
         }
     };
 
@@ -50,14 +21,14 @@ macro_rules! ghost_actor {
 
     ( @inner
         ($($vis:tt)*), $name:ident, $error:ty,
-        $( $doc:expr, $req_name:ident, $req_fname:ident, $req_type:ty, $res_type:ty ),*
+        $( $doc:expr, $req_name:ident, $req_type:ty, $res_type:ty ),*
     ) => {
-        $crate::ghost_actor! { @inner_types
-            ($($vis)*), $name, $error, $( $doc, $req_name, $req_fname, $req_type, $res_type ),*
-        }
         $crate::dependencies::paste::item! {
+            $crate::ghost_actor! { @inner_types
+                ($($vis)*), $name, $error, $( $doc, $req_name, [< $req_name:snake >], $req_type, $res_type ),*
+            }
             $crate::ghost_actor! { @inner2
-                ($($vis)*), $name, $error, $( $doc, $req_name, $req_fname, $req_type, $res_type, [< $name Future >] <$res_type> ),*
+                ($($vis)*), $name, $error, $( $doc, $req_name, [< $req_name:snake >], $req_type, $res_type, [< $name Future >] <$res_type> ),*
             }
         }
     };
@@ -69,10 +40,10 @@ macro_rules! ghost_actor {
         $( $doc:expr, $req_name:ident, $req_fname:ident, $req_type:ty, $res_type:ty, $res_type2:ty ),*
     ) => {
         $crate::ghost_chan! { @inner
-            (/* not pub */), $name, $error, $( $doc, $req_name, $req_fname, $req_type, $res_type2 ),*,
-            "custom", GhostActorCustom, ghost_actor_custom, Box<dyn ::std::any::Any + 'static + Send>, (),
-            "internal", GhostActorInternal, ghost_actor_internal, Box<dyn ::std::any::Any + 'static + Send>, (),
-            "shutdown", GhostActorShutdown, ghost_actor_shutdown, (), ()
+            (/* not pub */), $name, $error, $( $doc, $req_name, $req_type, $res_type2 ),*,
+            "custom", GhostActorCustom, Box<dyn ::std::any::Any + 'static + Send>, (),
+            "internal", GhostActorInternal, Box<dyn ::std::any::Any + 'static + Send>, (),
+            "shutdown", GhostActorShutdown, (), ()
         }
         $crate::ghost_actor! { @inner_handler
             ($($vis)*), $name, $error, $( $doc, $req_name, $req_fname, $req_type, $res_type, $res_type2 ),*

@@ -4,37 +4,48 @@
 /// ```
 /// use ghost_actor::example::MyError;
 /// ghost_actor::ghost_chan! {
-///     name: pub MyCustomChan,
-///     error: MyError,
-///     api: {
-///         TestMsg::test_msg("will respond with 'echo: input'", String, String),
+///     Visibility(pub),
+///     Name(MyCustomChan),
+///     Error(MyError),
+///     Api {
+///         TestMsg("will respond with 'echo: input'", String, String,),
 ///     }
 /// }
 ///
 /// ghost_actor::ghost_chan! {
-///     name: pub MyInternalChan,
-///     error: MyError,
-///     api: {
-///         TestMsg::test_msg("will respond with 'echo: input'", String, String),
+///     Visibility(pub),
+///     Name(MyInternalChan),
+///     Error(MyError),
+///     Api {
+///         TestMsg("will respond with 'echo: input'", String, String,),
 ///     }
 /// }
 ///
 /// ghost_actor::ghost_actor! {
-///     name: pub MyActor,
-///     error: MyError,
-///     api: {
-///         TestMessage::test_message(
+///     Visibility(pub),
+///     Name(MyActor),
+///     Error(MyError),
+///     Api {
+///         TestMessage(
 ///             "A test message, sends a String, receives a String.",
-///             String, String),
-///         AddOne::add_one(
+///             String,
+///             String,
+///         ),
+///         AddOne(
 ///             "A test function, output adds 1 to input.",
-///             u32, u32),
-///         FunkyInternal::funky_internal(
+///             u32,
+///             u32,
+///         ),
+///         FunkyInternal(
 ///             "Makes an internal_sender request from outside. In reality, you'd never need a command like this.",
-///             String, must_future::MustBoxFuture<'static, String>),
-///         FunkyStop::funky_stop(
+///             String,
+///             String,
+///         ),
+///         FunkyStop(
 ///             "Calls internal ghost_actor_shutdown_immediate() command. In reality, you'd never need a command like this.",
-///             (), ()),
+///             (),
+///             (),
+///         ),
 ///     }
 /// }
 /// # pub fn main() {}
@@ -54,37 +65,48 @@ pub mod example {
     }
 
     crate::ghost_chan! {
-        name: pub MyCustomChan,
-        error: MyError,
-        api: {
-            TestMsg::test_msg("will respond with 'echo: input'", String, String),
+        Visibility(pub),
+        Name(MyCustomChan),
+        Error(MyError),
+        Api {
+            TestMsg("will respond with 'echo: input'", String, String,),
         }
     }
 
     crate::ghost_chan! {
-        name: pub MyInternalChan,
-        error: MyError,
-        api: {
-            TestMsg::test_msg("will respond with 'echo: input'", String, String),
+        Visibility(pub),
+        Name(MyInternalChan),
+        Error(MyError),
+        Api {
+            TestMsg("will respond with 'echo: input'", String, String,),
         }
     }
 
     crate::ghost_actor! {
-        name: pub MyActor,
-        error: MyError,
-        api: {
-            TestMessage::test_message(
+        Visibility(pub),
+        Name(MyActor),
+        Error(MyError),
+        Api {
+            TestMessage(
                 "A test message, sends a String, receives a String.",
-                String, String),
-            AddOne::add_one(
+                String,
+                String,
+            ),
+            AddOne(
                 "A test function, output adds 1 to input.",
-                u32, u32),
-            FunkyInternal::funky_internal(
+                u32,
+                u32,
+            ),
+            FunkyInternal(
                 "Makes an internal_sender request from outside. In reality, you'd never need a command like this.",
-                String, String),
-            FunkyStop::funky_stop(
+                String,
+                String,
+            ),
+            FunkyStop(
                 "Calls internal ghost_actor_shutdown_immediate() command. In reality, you'd never need a command like this.",
-                (), ()),
+                (),
+                (),
+            ),
         }
     }
 }

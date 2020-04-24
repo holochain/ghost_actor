@@ -9,19 +9,21 @@ mod my_mod {
     }
 
     ghost_actor::ghost_chan! {
-        name: pub MyChan,
-        error: MyError,
-        api: {
-            MyFn::my_fn("", i32, i32)
+        Visibility(pub),
+        Name(MyChan),
+        Error(MyError),
+        Api {
+            MyFn("", i32, i32,),
         }
     }
 
     ghost_actor::ghost_actor! {
-        name: pub MyActor,
-        error: MyError,
-        api: {
-            MyFn::my_fn("", i32, i32),
-            MyInner::my_inner("", i32, i32),
+        Visibility(pub),
+        Name(MyActor),
+        Error(MyError),
+        Api {
+            MyFn("", i32, i32,),
+            MyInner("", i32, i32,),
         }
     }
 }

@@ -1,6 +1,6 @@
 [package]
 name = "ghost_actor"
-version = "0.1.0-alpha.7"
+version = "0.1.0-alpha.8"
 authors = ["Holochain Core Dev Team <devcore@holochain.org>"]
 edition = "2018"
 description = "A simple, ergonomic, idiomatic, macro for generating the boilerplate to use rust futures tasks in a concurrent actor style."
@@ -13,7 +13,7 @@ repository = "https://github.com/holochain/ghost_actor"
 
 [dependencies]
 futures = "0.3"
-paste = "0.1"
+paste = "0.1.10"
 thiserror = "1"
 tracing = "0.1"
 must_future = "0.1.1"
