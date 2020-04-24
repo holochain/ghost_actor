@@ -34,7 +34,7 @@ impl MyActorHandler<(), ()> for MyActorImpl {
 
 impl MyActorImpl {
     /// Rather than using ghost_actor_spawn directly, use this simple spawn.
-    pub async fn spawn() -> MyActorSender<()> {
+    pub async fn spawn() -> MyActorSender {
         use futures::future::FutureExt;
 
         let (sender, driver) = MyActorSender::ghost_actor_spawn(Box::new(|_| {

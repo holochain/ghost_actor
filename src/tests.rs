@@ -97,7 +97,7 @@ mod tests {
 
     /// An example implementation of the example MyActor GhostActor.
     struct MyActorImpl {
-        internal_sender: MyActorInternalSender<MyCustomChan, MyInternalChan>,
+        internal_sender: MyActorInternalSender<MyInternalChan>,
     }
 
     impl MyActorHandler<MyCustomChan, MyInternalChan> for MyActorImpl {
@@ -123,26 +123,28 @@ mod tests {
             Ok(async move { Ok(()) }.boxed().into())
         }
 
-        fn handle_ghost_actor_custom(&mut self, input: MyCustomChan) {
+        fn handle_ghost_actor_custom(&mut self, input: MyCustomChan) -> MyActorResult<()> {
             match input {
                 MyCustomChan::TestMsg(GhostChanItem { input, respond, .. }) => {
                     respond(Ok(format!("custom respond to: {}", input))).unwrap();
                 }
             }
+            Ok(())
         }
 
-        fn handle_ghost_actor_internal(&mut self, input: MyInternalChan) {
+        fn handle_ghost_actor_internal(&mut self, input: MyInternalChan) -> MyActorResult<()> {
             match input {
                 MyInternalChan::TestMsg(GhostChanItem { input, respond, .. }) => {
                     respond(Ok(format!("internal respond to: {}", input))).unwrap();
                 }
             }
+            Ok(())
         }
     }
 
     impl MyActorImpl {
         /// Rather than using ghost_actor_spawn directly, use this simple spawn.
-        pub async fn spawn() -> Result<MyActorSender<MyCustomChan>, MyError> {
+        pub async fn spawn() -> Result<MyActorSender, MyError> {
             let (sender, driver) = MyActorSender::ghost_actor_spawn(Box::new(|i_s| {
                 async move {
                     Ok(MyActorImpl {
@@ -197,7 +199,7 @@ mod tests {
         assert_eq!(
             "custom respond to: c_test",
             &sender
-                .ghost_actor_custom()
+                .ghost_actor_custom::<MyCustomChan>()
                 .test_msg("c_test".into())
                 .await
                 .unwrap()

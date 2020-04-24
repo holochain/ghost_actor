@@ -1,13 +1,16 @@
 /// Ghost error type.
 #[derive(Debug, thiserror::Error)]
 pub enum GhostError {
-    /// Failed to send on channel
+    /// Failed to send on channel.
     SendError(#[from] futures::channel::mpsc::SendError),
 
-    /// Error sending response
+    /// Error sending response.
     ResponseError(#[from] futures::channel::oneshot::Canceled),
 
-    /// unspecified ghost actor error
+    /// Invalid custom type error.
+    InvalidCustomType,
+
+    /// Unspecified GhostActor error.
     Other(String),
 }
 
