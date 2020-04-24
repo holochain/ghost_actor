@@ -150,7 +150,7 @@ macro_rules! ghost_actor {
                 #[doc = "Handle custom messages specific to this exact actor implementation. The provided implementation panics with unimplemented!"]
                 fn handle_ghost_actor_custom(
                     &mut self, input: C,
-                ) {
+                ) -> [< $name Result >] <()> {
                     unimplemented!()
                 }
 
@@ -158,7 +158,7 @@ macro_rules! ghost_actor {
                 #[doc = "Handle internal messages specific to this exact actor implementation. The provided implementation panics with unimplemented!"]
                 fn handle_ghost_actor_internal(
                     &mut self, input: I,
-                ) {
+                ) -> [< $name Result >] <()> {
                     unimplemented!()
                 }
             }
@@ -233,30 +233,20 @@ macro_rules! ghost_actor {
                 C: 'static + Send,
             {
                 fn ghost_chan_send(&mut self, item: C) -> $crate::dependencies::must_future::MustBoxFuture<'_, $crate::GhostResult<()>> {
-                    use $crate::dependencies::futures::{future::FutureExt, sink::SinkExt};
+                    use $crate::dependencies::futures::future::FutureExt;
 
                     let input: Box<dyn ::std::any::Any + Send> = Box::new(item);
 
-                    // this item (if it is a GhostChan) already encapsulates
-                    // the response handling - send dummy no-op respond
-                    let item = $crate::GhostChanItem {
-                        input,
-                        respond: Box::new(|_| Ok(())),
-                        span: $crate::dependencies::tracing::trace_span!("noop"),
-                    };
-
                     let send_fut = if self.is_internal {
-                        self.sender.send(
-                            $name::GhostActorInternal(item)
-                        )
+                        self.sender.ghost_actor_internal(input)
                     } else {
-                        self.sender.send(
-                            $name::GhostActorCustom(item)
-                        )
+                        self.sender.ghost_actor_custom(input)
                     };
 
                     async move {
-                        send_fut.await?;
+                        send_fut.await.map_err(|e| {
+                            $crate::GhostError::Other(format!("{:?}", e))
+                        })?;
                         Ok(())
                     }
                     .boxed()
@@ -265,42 +255,26 @@ macro_rules! ghost_actor {
             }
 
             #[doc = "A cheaply clone-able handle to control a ghost_actor task."]
-            $($vis)* struct [< $name Sender >] <C>
-            where
-                C: 'static + Send,
+            #[derive(Clone)]
+            $($vis)* struct [< $name Sender >]
             {
                 sender: $crate::dependencies::futures::channel::mpsc::Sender<$name>,
-                phantom: ::std::marker::PhantomData<C>,
             }
 
-            // have to manually impl so we don't introduce clone bound on `C`
-            impl<C> ::std::clone::Clone for [< $name Sender >] <C>
-            where
-                C: 'static + Send,
-            {
-                fn clone(&self) -> Self {
-                    Self {
-                        sender: self.sender.clone(),
-                        phantom: ::std::marker::PhantomData,
-                    }
-                }
-            }
-
-            impl<C> [< $name Sender >] <C>
-            where
-                C: 'static + Send,
+            impl [< $name Sender >]
             {
                 /// Library users will likely not use this function,
                 /// look to the implementation of your actor for a simpler spawn.
                 /// GhostActor implementors will use this to spawn handler tasks.
-                pub async fn ghost_actor_spawn<I, H>(
+                pub async fn ghost_actor_spawn<C, I, H>(
                     factory: $crate::GhostActorSpawn<
-                        [< $name InternalSender >] <C, I>,
+                        [< $name InternalSender >] <I>,
                         H,
                         $error,
                     >,
                 ) -> [< $name Result >]<(Self, $crate::GhostActorDriver)>
                 where
+                    C: 'static + Send,
                     I: 'static + Send,
                     H: [< $name Handler >] <C, I>,
                 {
@@ -308,18 +282,16 @@ macro_rules! ghost_actor {
 
                     let sender = Self {
                         sender: send,
-                        phantom: std::marker::PhantomData,
                     };
 
                     let shutdown = ::std::sync::Arc::new(
                         ::std::sync::RwLock::new(false)
                     );
 
-                    let internal_sender: [< $name InternalSender >] <C, I> =
+                    let internal_sender: [< $name InternalSender >] <I> =
                         [< $name InternalSender >] {
                             sender: Self::clone(&sender),
                             shutdown: shutdown.clone(),
-                            phantom_c: ::std::marker::PhantomData,
                             phantom_i: ::std::marker::PhantomData,
                         };
 
@@ -344,21 +316,29 @@ macro_rules! ghost_actor {
                                 }
                                 $name::GhostActorCustom(item) => {
                                     let $crate::GhostChanItem {
-                                        input, .. } = item;
-                                    let input = input.downcast::<C>()
-                                        // shouldn't happen -
-                                        // we control the incoming types
-                                        .expect("bad type sent into custom");
-                                    handler.handle_ghost_actor_custom(*input);
+                                        input, respond, span } = item;
+                                    let _g = span.enter();
+                                    match input.downcast::<C>() {
+                                        Ok(input) => {
+                                            let result = handler.handle_ghost_actor_custom(*input);
+                                            let _ = respond(result);
+                                        }
+                                        Err(_) => {
+                                            let _ = respond(Err($crate::GhostError::InvalidCustomType.into()));
+                                            return;
+                                        }
+                                    }
                                 }
                                 $name::GhostActorInternal(item) => {
                                     let $crate::GhostChanItem {
-                                        input, .. } = item;
+                                        input, respond, span } = item;
+                                    let _g = span.enter();
                                     let input = input.downcast::<I>()
                                         // shouldn't happen -
                                         // we control the incoming types
                                         .expect("bad type sent into internal");
-                                    handler.handle_ghost_actor_internal(*input);
+                                    let result = handler.handle_ghost_actor_internal(*input);
+                                    let _ = respond(result);
                                 }
                                 $(
                                     $name::$req_name(item) => {
@@ -388,7 +368,10 @@ macro_rules! ghost_actor {
                 )*
 
                 /// Send a custom message along to the ghost actor.
-                pub fn ghost_actor_custom(&mut self) -> [< $name Helper >] <'_, C> {
+                pub fn ghost_actor_custom<C>(&mut self) -> [< $name Helper >] <'_, C>
+                where
+                    C: 'static + Send
+                {
                     [< $name Helper >] {
                         sender: &mut self.sender,
                         is_internal: false,
@@ -414,48 +397,42 @@ macro_rules! ghost_actor {
     ) => {
         $crate::dependencies::paste::item! {
             #[doc = "The InternalSender accessible from within handlers."]
-            $($vis)* struct [< $name InternalSender >] <C, I>
+            $($vis)* struct [< $name InternalSender >] <I>
             where
-                C: 'static + Send,
                 I: 'static + Send,
             {
-                sender: [< $name Sender >]<C>,
+                sender: [< $name Sender >],
                 shutdown: ::std::sync::Arc<::std::sync::RwLock<bool>>,
-                phantom_c: ::std::marker::PhantomData<C>,
                 phantom_i: ::std::marker::PhantomData<I>,
             }
 
-            // have to manually impl so we don't introduce clone bound on `C`, `I`
-            impl<C, I> ::std::clone::Clone for [< $name InternalSender >] <C, I>
+            // have to manually impl so we don't introduce clone bound on `I`
+            impl<I> ::std::clone::Clone for [< $name InternalSender >] <I>
             where
-                C: 'static + Send,
                 I: 'static + Send,
             {
                 fn clone(&self) -> Self {
                     Self {
                         sender: self.sender.clone(),
                         shutdown: self.shutdown.clone(),
-                        phantom_c: ::std::marker::PhantomData,
                         phantom_i: ::std::marker::PhantomData,
                     }
                 }
             }
 
-            impl<C, I> ::std::ops::Deref for [< $name InternalSender >] <C, I>
+            impl<I> ::std::ops::Deref for [< $name InternalSender >] <I>
             where
-                C: 'static + Send,
                 I: 'static + Send,
             {
-                type Target = [< $name Sender >] <C>;
+                type Target = [< $name Sender >];
 
                 fn deref(&self) -> &Self::Target {
                     &self.sender
                 }
             }
 
-            impl<C, I> ::std::ops::DerefMut for [< $name InternalSender >] <C, I>
+            impl<I> ::std::ops::DerefMut for [< $name InternalSender >] <I>
             where
-                C: 'static + Send,
                 I: 'static + Send,
             {
                 fn deref_mut(&mut self) -> &mut Self::Target {
@@ -463,9 +440,8 @@ macro_rules! ghost_actor {
                 }
             }
 
-            impl<C, I> [< $name InternalSender >] <C, I>
+            impl<I> [< $name InternalSender >] <I>
             where
-                C: 'static + Send,
                 I: 'static + Send,
             {
                 /// Send an internal message back to our handler.
