@@ -22,10 +22,12 @@ or if you explicitly call `ghost_actor_shutdown()`, the driver task
 
 ```rust
 ghost_actor::ghost_actor! {
-    // set the visibility of your actor - `()` for private.
+    // set the visibility of your actor - `Visibility()` for private.
     Visibility(pub),
 
-    // name your actor
+    // name your actor - the main reference for interacting with your
+    //                   actor will have the suffix "Sender" appended.
+    //                   In this case: "MyActorSender".
     Name(MyActor),
 
     // any custom error set here must implement `From<GhostError>`
@@ -51,6 +53,11 @@ ghost_actor::ghost_actor! {
 /// An example implementation of the example MyActor GhostActor.
 struct MyActorImpl;
 
+// The generics for a handler are:
+// 1 - the "custom" type you'd like to allow users of your api to send in.
+// 2 - the "internal" type you'd like your handlers to send in.
+// It is highly recommended to use a `ghost_chan!` type for these.
+// However, if you have no use for these capabilities, use `()`.
 impl MyActorHandler<(), ()> for MyActorImpl {
     fn handle_add_one(
         &mut self,
@@ -67,7 +74,7 @@ impl MyActorImpl {
     pub async fn spawn() -> MyActorSender {
         use futures::future::FutureExt;
 
-        let (sender, driver) = MyActorSender::ghost_actor_spawn(Box::new(|_| {
+        let (sender, driver) = MyActorSender::ghost_actor_spawn(Box::new(|_internal_sender| {
             async move {
                 Ok(MyActorImpl)
             }.boxed().into()
@@ -93,3 +100,69 @@ async fn main() {
     );
 }
 ```
+
+## Implementing a Handler
+
+The `ghost_actor!` macro is going to generate a "[Name]Handler" trait.
+To provide an implementation for your `ghost_actor!` type, you need an
+item that implements this trait (see example above).
+
+In addition to all the `handle_*` methods that are auto-generated per
+the `Api` section in the macro, there are also provided implementations
+for `handle_ghost_actor_custom` and `handle_ghost_actor_internal`.
+
+Please see any of the unit tests (or run `cargo doc` on a module containing
+your `ghost_actor!` macro invocation) for examples on how to implement
+a handler.
+
+## Implementing a Spawn function
+
+While you can absolutely require users of your api to call
+`YourTypeSender::ghost_actor_spawn(...)` and instantiate your handler type
+inside the callback, it might be polite to provide a function that requires
+a little less boilerplate.
+
+See the example above, however, there may be no need to expose the
+implemented item type at all, you could, for example:
+
+```rust
+/// internal private type
+struct MyActorImpl;
+
+impl MyActorHandler<(), ()> for MyActorImpl {
+    // ...
+#
+#
+#
+}
+
+/// Rather than using ghost_actor_spawn directly, use this simple spawn.
+/// This spawn makes an assumption that we are in a tokio runtime,
+/// if we don't want to make that assumption, we can also return the
+/// driver future here.
+pub async fn spawn_my_actor() -> MyActorSender {
+    use futures::future::FutureExt;
+
+    let (sender, driver) = MyActorSender::ghost_actor_spawn(Box::new(|_internal_sender| {
+        async move {
+            Ok(MyActorImpl)
+        }.boxed().into()
+    })).await.unwrap();
+
+    tokio::task::spawn(driver);
+
+    sender
+}
+```
+
+## The `ghost_chan!` macro.
+
+The `ghost_chan!` macro has an identical API to the `ghost_actor!` macro.
+And, in fact, the `ghost_actor!` macro invokes `ghost_chan!` to produce
+an internal enum for sending messages from your `Sender` struct.
+
+When implementing a ghost actor Handler that will make use of Custom
+and/or Internal types, it is recommended to use a `ghost_chan!` enum as
+this type.
+
+See the unit/integration tests for examples on making use of these.
