@@ -125,7 +125,7 @@
 //! implemented item type at all, you could, for example:
 //!
 //! ```
-//! # use ghost_actor::example::{MyActorSender, MyActorHandler, MyActorHandlerResult};
+//! # use ghost_actor::example::{MyActorSender, MyActorHandler, MyActorHandlerResult, NotDebug};
 //! /// internal private type
 //! struct MyActorImpl;
 //!
@@ -136,6 +136,10 @@
 //! #    }
 //! #
 //! #    fn handle_add_one(&mut self, input: u32) -> MyActorHandlerResult<u32> {
+//! #        unimplemented!();
+//! #    }
+//! #
+//! #    fn handle_req_not_debug(&mut self, input: NotDebug) -> MyActorHandlerResult<()> {
 //! #        unimplemented!();
 //! #    }
 //! #

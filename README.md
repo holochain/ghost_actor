@@ -134,6 +134,7 @@ impl MyActorHandler<(), ()> for MyActorImpl {
 #
 #
 #
+#
 }
 
 /// Rather than using ghost_actor_spawn directly, use this simple spawn.

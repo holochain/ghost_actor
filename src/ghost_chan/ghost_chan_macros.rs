@@ -89,7 +89,7 @@ macro_rules! ghost_chan {
                 where
                     S: $crate::ghost_chan::GhostChanSend<$name> + ?Sized,
                 {
-                    $crate::dependencies::tracing::trace!(request = ?input);
+                    $crate::dependencies::tracing::trace!(request = stringify!($req_fname));
                     let (send, recv) = $crate::dependencies::futures::channel::oneshot::channel();
                     let t = $crate::ghost_chan::GhostChanItem {
                         input,
