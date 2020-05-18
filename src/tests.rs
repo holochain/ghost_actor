@@ -58,6 +58,9 @@ pub mod example {
         GhostError(#[from] crate::GhostError),
     }
 
+    /// This struct does not implement debug.
+    pub struct NotDebug;
+
     impl std::fmt::Display for MyError {
         fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
             write!(f, "{:?}", self)
@@ -97,6 +100,11 @@ pub mod example {
                 u32,
                 u32,
             ),
+            ReqNotDebug(
+                "Ensure we can take params that don't implement Deug",
+                NotDebug,
+                (),
+            ),
             FunkyInternal(
                 "Makes an internal_sender request from outside. In reality, you'd never need a command like this.",
                 String,
@@ -129,6 +137,10 @@ mod tests {
 
         fn handle_add_one(&mut self, input: u32) -> MyActorHandlerResult<u32> {
             Ok(async move { Ok(input + 1) }.boxed().into())
+        }
+
+        fn handle_req_not_debug(&mut self, _input: NotDebug) -> MyActorHandlerResult<()> {
+            Ok(async move { Ok(()) }.boxed().into())
         }
 
         fn handle_funky_internal(&mut self, input: String) -> MyActorHandlerResult<String> {
