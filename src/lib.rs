@@ -141,19 +141,15 @@
 //! #    fn handle_test_message(&mut self, input: String) -> MyActorHandlerResult<String> {
 //! #        unimplemented!();
 //! #    }
-//! #
 //! #    fn handle_add_one(&mut self, input: u32) -> MyActorHandlerResult<u32> {
 //! #        unimplemented!();
 //! #    }
-//! #
 //! #    fn handle_req_not_debug(&mut self, input: NotDebug) -> MyActorHandlerResult<()> {
 //! #        unimplemented!();
 //! #    }
-//! #
 //! #    fn handle_funky_internal(&mut self, input: String) -> MyActorHandlerResult<String> {
 //! #        unimplemented!();
 //! #    }
-//! #
 //! #    fn handle_funky_stop(&mut self) -> MyActorHandlerResult<()> {
 //! #        unimplemented!();
 //! #    }
