@@ -9,6 +9,7 @@ mod my_mod {
     }
 
     ghost_actor::ghost_chan! {
+        Doc("test chan"),
         Visibility(pub),
         Name(MyChan),
         Error(MyError),
@@ -18,6 +19,7 @@ mod my_mod {
     }
 
     ghost_actor::ghost_actor! {
+        Doc("test actor"),
         Visibility(pub),
         Name(MyActor),
         Error(MyError),

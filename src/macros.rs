@@ -7,28 +7,29 @@ macro_rules! ghost_actor {
     // -- public api arms -- //
 
     (
+        Doc($tdoc:expr),
         Visibility($($vis:tt)*),
         Name($name:ident),
         Error($error:ty),
         Api { $( $req_name:ident ( $doc:expr, $req_type:ty, $res_type:ty, ) ),*, }
     ) => {
         $crate::ghost_actor! { @inner
-            ($($vis)*), $name, $error, $( $doc, $req_name, $req_type, $res_type ),*
+            $tdoc, ($($vis)*), $name, $error, $( $doc, $req_name, $req_type, $res_type ),*
         }
     };
 
     // -- "inner" arm dispatches to further individual inner arm helpers -- //
 
     ( @inner
-        ($($vis:tt)*), $name:ident, $error:ty,
+        $tdoc:expr, ($($vis:tt)*), $name:ident, $error:ty,
         $( $doc:expr, $req_name:ident, $req_type:ty, $res_type:ty ),*
     ) => {
         $crate::dependencies::paste::item! {
             $crate::ghost_actor! { @inner_types
-                ($($vis)*), $name, $error, $( $doc, $req_name, [< $req_name:snake >], $req_type, $res_type ),*
+                $tdoc, ($($vis)*), $name, $error, $( $doc, $req_name, [< $req_name:snake >], $req_type, $res_type ),*
             }
             $crate::ghost_actor! { @inner2
-                ($($vis)*), $name, $error, $( $doc, $req_name, [< $req_name:snake >], $req_type, $res_type, [< $name Future >] <$res_type> ),*
+                $tdoc, ($($vis)*), $name, $error, $( $doc, $req_name, [< $req_name:snake >], $req_type, $res_type, [< $name Future >] <$res_type> ),*
             }
         }
     };
@@ -36,30 +37,30 @@ macro_rules! ghost_actor {
     // -- "inner2" has some slight type alterations -- //
 
     ( @inner2
-        ($($vis:tt)*), $name:ident, $error:ty,
+        $tdoc:expr, ($($vis:tt)*), $name:ident, $error:ty,
         $( $doc:expr, $req_name:ident, $req_fname:ident, $req_type:ty, $res_type:ty, $res_type2:ty ),*
     ) => {
         $crate::ghost_chan! { @inner
-            (/* not pub */), $name, $error, $( $doc, $req_name, $req_type, $res_type2 ),*,
+            "internal private channel", (/* not pub */), $name, $error, $( $doc, $req_name, $req_type, $res_type2 ),*,
             "custom", GhostActorCustom, Box<dyn ::std::any::Any + 'static + Send>, (),
             "internal", GhostActorInternal, Box<dyn ::std::any::Any + 'static + Send>, (),
             "shutdown", GhostActorShutdown, (), ()
         }
         $crate::ghost_actor! { @inner_handler
-            ($($vis)*), $name, $error, $( $doc, $req_name, $req_fname, $req_type, $res_type, $res_type2 ),*
+            $tdoc, ($($vis)*), $name, $error, $( $doc, $req_name, $req_fname, $req_type, $res_type, $res_type2 ),*
         }
         $crate::ghost_actor! { @inner_sender
-            ($($vis)*), $name, $error, $( $doc, $req_name, $req_fname, $req_type, $res_type, $res_type2 ),*
+            $tdoc, ($($vis)*), $name, $error, $( $doc, $req_name, $req_fname, $req_type, $res_type, $res_type2 ),*
         }
         $crate::ghost_actor! { @inner_internal_sender
-            ($($vis)*), $name, $error, $( $doc, $req_name, $req_fname, $req_type, $res_type, $res_type2 ),*
+            $tdoc, ($($vis)*), $name, $error, $( $doc, $req_name, $req_fname, $req_type, $res_type, $res_type2 ),*
         }
     };
 
     // -- "types" arm writes our helper typedefs -- //
 
     ( @inner_types
-        ($($vis:tt)*), $name:ident, $error:ty,
+        $tdoc:expr, ($($vis:tt)*), $name:ident, $error:ty,
         $( $doc:expr, $req_name:ident, $req_fname:ident, $req_type:ty, $res_type:ty ),*
     ) => {
         $crate::dependencies::paste::item! {
@@ -97,11 +98,11 @@ macro_rules! ghost_actor {
     // -- "handler" arm writes our handler trait -- //
 
     ( @inner_handler
-        ($($vis:tt)*), $name:ident, $error:ty,
+        $tdoc:expr, ($($vis:tt)*), $name:ident, $error:ty,
         $( $doc:expr, $req_name:ident, $req_fname:ident, $req_type:ty, $res_type:ty, $res_type2:ty ),*
     ) => {
         $crate::dependencies::paste::item! {
-            #[doc = "Implement this trait to process incoming actor messages."]
+            #[doc = $tdoc]
             $($vis)* trait [< $name Handler >] <
                 C: 'static + Send,
                 I: 'static + Send,
@@ -184,11 +185,11 @@ macro_rules! ghost_actor {
     // -- "sender" arm writes our sender struct -- //
 
     ( @inner_sender
-        ($($vis:tt)*), $name:ident, $error:ty,
+        $tdoc:expr, ($($vis:tt)*), $name:ident, $error:ty,
         $( $doc:expr, $req_name:ident, $req_fname:ident, $req_type:ty, $res_type:ty, $res_type2:ty ),*
     ) => {
         $crate::dependencies::paste::item! {
-            #[doc = "Helper for ghost_actor Sender custom."]
+            #[doc = "ghost_actor_custom and ghost_actor_internal use this type to expose senders."]
             $($vis)* struct [< $name Helper >] <'lt, C>
             where
                 C: 'static + Send,
@@ -224,7 +225,7 @@ macro_rules! ghost_actor {
                 }
             }
 
-            #[doc = "A cheaply clone-able handle to control a ghost_actor task."]
+            #[doc = $tdoc]
             #[derive(Clone)]
             $($vis)* struct [< $name Sender >]
             {
@@ -362,11 +363,11 @@ macro_rules! ghost_actor {
     // -- "internal_sender" arm writes our InternalSender struct -- //
 
     ( @inner_internal_sender
-        ($($vis:tt)*), $name:ident, $error:ty,
+        $tdoc:expr, ($($vis:tt)*), $name:ident, $error:ty,
         $( $doc:expr, $req_name:ident, $req_fname:ident, $req_type:ty, $res_type:ty, $res_type2:ty ),*
     ) => {
         $crate::dependencies::paste::item! {
-            #[doc = "The InternalSender accessible from within handlers."]
+            #[doc = $tdoc]
             $($vis)* struct [< $name InternalSender >] <I>
             where
                 I: 'static + Send,

@@ -4,6 +4,7 @@
 /// ```
 /// use ghost_actor::example::MyError;
 /// ghost_actor::ghost_chan! {
+///     Doc("custom chan"),
 ///     Visibility(pub),
 ///     Name(MyCustomChan),
 ///     Error(MyError),
@@ -13,6 +14,7 @@
 /// }
 ///
 /// ghost_actor::ghost_chan! {
+///     Doc("internal chan"),
 ///     Visibility(pub),
 ///     Name(MyInternalChan),
 ///     Error(MyError),
@@ -22,6 +24,7 @@
 /// }
 ///
 /// ghost_actor::ghost_actor! {
+///     Doc("test actor"),
 ///     Visibility(pub),
 ///     Name(MyActor),
 ///     Error(MyError),
@@ -68,6 +71,7 @@ pub mod example {
     }
 
     crate::ghost_chan! {
+        Doc("custom chan"),
         Visibility(pub),
         Name(MyCustomChan),
         Error(MyError),
@@ -77,6 +81,7 @@ pub mod example {
     }
 
     crate::ghost_chan! {
+        Doc("internal chan"),
         Visibility(pub),
         Name(MyInternalChan),
         Error(MyError),
@@ -86,6 +91,7 @@ pub mod example {
     }
 
     crate::ghost_actor! {
+        Doc("test actor"),
         Visibility(pub),
         Name(MyActor),
         Error(MyError),

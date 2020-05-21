@@ -22,6 +22,11 @@ or if you explicitly call `ghost_actor_shutdown()`, the driver task
 
 ```rust
 ghost_actor::ghost_actor! {
+    // Api Docs that should appear on the Sender type for your actor.
+    Doc(r#"My doc summary line.
+
+My doc detail line."#),
+
     // set the visibility of your actor - `Visibility()` for private.
     Visibility(pub),
 

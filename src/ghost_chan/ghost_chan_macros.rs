@@ -8,28 +8,29 @@ macro_rules! ghost_chan {
     // -- public api arms -- //
 
     (
+        Doc($tdoc:expr),
         Visibility($($vis:tt)*),
         Name($name:ident),
         Error($error:ty),
         Api { $( $req_name:ident ( $doc:expr, $req_type:ty, $res_type:ty, ) ),*, }
     ) => {
         $crate::ghost_chan! { @inner
-            ($($vis)*), $name, $error, $( $doc, $req_name, $req_type, $res_type ),*
+            $tdoc, ($($vis)*), $name, $error, $( $doc, $req_name, $req_type, $res_type ),*
         }
     };
 
     // -- "inner" arm dispatches to further individual inner arm helpers -- //
 
     ( @inner
-        ($($vis:tt)*), $name:ident, $error:ty,
+        $tdoc:expr, ($($vis:tt)*), $name:ident, $error:ty,
         $( $doc:expr, $req_name:ident, $req_type:ty, $res_type:ty ),*
     ) => {
         $crate::dependencies::paste::item! {
             $crate::ghost_chan! { @inner_protocol
-                ($($vis)*), $name, $error, $( $doc, $req_name, [< $req_name:snake >], $req_type, $res_type ),*
+                $tdoc, ($($vis)*), $name, $error, $( $doc, $req_name, [< $req_name:snake >], $req_type, $res_type ),*
             }
             $crate::ghost_chan! { @inner_send_trait
-                ($($vis)*), $name, $error, $( $doc, $req_name, [< $req_name:snake >], $req_type, $res_type ),*
+                $tdoc, ($($vis)*), $name, $error, $( $doc, $req_name, [< $req_name:snake >], $req_type, $res_type ),*
             }
         }
     };
@@ -37,11 +38,11 @@ macro_rules! ghost_chan {
     // -- "protocol" arm writes our protocol enum -- //
 
     ( @inner_protocol
-        ($($vis:tt)*), $name:ident, $error:ty,
+        $tdoc:expr, ($($vis:tt)*), $name:ident, $error:ty,
         $( $doc:expr, $req_name:ident, $req_fname:ident, $req_type:ty, $res_type:ty ),*
     ) => {
         #[derive(Debug)]
-        #[doc = "GhostChan protocol enum."]
+        #[doc = $tdoc]
         $($vis)* enum $name {
             $(
                 #[doc = $doc]
@@ -76,7 +77,7 @@ macro_rules! ghost_chan {
     // -- "send_trait" arm writes our protocol send trait -- //
 
     ( @inner_send_trait
-        ($($vis:tt)*), $name:ident, $error:ty,
+        $tdoc:expr, ($($vis:tt)*), $name:ident, $error:ty,
         $( $doc:expr, $req_name:ident, $req_fname:ident, $req_type:ty, $res_type:ty ),*
     ) => {
         $crate::dependencies::paste::item! {
@@ -120,7 +121,7 @@ macro_rules! ghost_chan {
                 }
             )*
 
-            #[doc = "GhostChan protocol enum send trait."]
+            #[doc = $tdoc]
             $($vis)* trait [< $name Send >]: $crate::ghost_chan::GhostChanSend<$name> {
                 $(
                     $crate::ghost_chan! { @inner_helper_sender
