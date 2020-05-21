@@ -266,10 +266,12 @@ mod tests {
 
         sender.ghost_actor_shutdown().await.unwrap();
 
-        assert_eq!(
-            "Err(GhostError(SendError(SendError { kind: Disconnected })))",
-            &format!("{:?}", sender.add_one(42).await),
-        );
+        let res = format!("{:?}", sender.add_one(42).await);
+        if &res != "Err(GhostError(SendError(SendError { kind: Disconnected })))"
+            && &res != "Err(GhostError(ResponseError(Canceled)))"
+        {
+            panic!("expected send error");
+        }
     }
 
     #[tokio::test]
@@ -280,9 +282,11 @@ mod tests {
 
         sender.funky_stop().await.unwrap();
 
-        assert_eq!(
-            "Err(GhostError(SendError(SendError { kind: Disconnected })))",
-            &format!("{:?}", sender.add_one(42).await),
-        );
+        let res = format!("{:?}", sender.add_one(42).await);
+        if &res != "Err(GhostError(SendError(SendError { kind: Disconnected })))"
+            && &res != "Err(GhostError(ResponseError(Canceled)))"
+        {
+            panic!("expected send error");
+        }
     }
 }
