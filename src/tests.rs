@@ -4,6 +4,7 @@
 /// ```
 /// use ghost_actor::example::MyError;
 /// ghost_actor::ghost_chan! {
+///     Doc("custom chan"),
 ///     Visibility(pub),
 ///     Name(MyCustomChan),
 ///     Error(MyError),
@@ -13,6 +14,7 @@
 /// }
 ///
 /// ghost_actor::ghost_chan! {
+///     Doc("internal chan"),
 ///     Visibility(pub),
 ///     Name(MyInternalChan),
 ///     Error(MyError),
@@ -22,6 +24,7 @@
 /// }
 ///
 /// ghost_actor::ghost_actor! {
+///     Doc("test actor"),
 ///     Visibility(pub),
 ///     Name(MyActor),
 ///     Error(MyError),
@@ -68,6 +71,7 @@ pub mod example {
     }
 
     crate::ghost_chan! {
+        Doc("custom chan"),
         Visibility(pub),
         Name(MyCustomChan),
         Error(MyError),
@@ -77,6 +81,7 @@ pub mod example {
     }
 
     crate::ghost_chan! {
+        Doc("internal chan"),
         Visibility(pub),
         Name(MyInternalChan),
         Error(MyError),
@@ -86,6 +91,7 @@ pub mod example {
     }
 
     crate::ghost_actor! {
+        Doc("test actor"),
         Visibility(pub),
         Name(MyActor),
         Error(MyError),
@@ -260,10 +266,12 @@ mod tests {
 
         sender.ghost_actor_shutdown().await.unwrap();
 
-        assert_eq!(
-            "Err(GhostError(SendError(SendError { kind: Disconnected })))",
-            &format!("{:?}", sender.add_one(42).await),
-        );
+        let res = format!("{:?}", sender.add_one(42).await);
+        if &res != "Err(GhostError(SendError(SendError { kind: Disconnected })))"
+            && &res != "Err(GhostError(ResponseError(Canceled)))"
+        {
+            panic!("expected send error");
+        }
     }
 
     #[tokio::test]
@@ -274,9 +282,11 @@ mod tests {
 
         sender.funky_stop().await.unwrap();
 
-        assert_eq!(
-            "Err(GhostError(SendError(SendError { kind: Disconnected })))",
-            &format!("{:?}", sender.add_one(42).await),
-        );
+        let res = format!("{:?}", sender.add_one(42).await);
+        if &res != "Err(GhostError(SendError(SendError { kind: Disconnected })))"
+            && &res != "Err(GhostError(ResponseError(Canceled)))"
+        {
+            panic!("expected send error");
+        }
     }
 }
