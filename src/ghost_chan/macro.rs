@@ -58,7 +58,7 @@ macro_rules! ghost_chan_new {
             $(
                 $(#[$rmeta])*
                 $rnamec ($crate::ghost_chan::GhostChanItem<
-                    ($($pty),*),
+                    ($($pty,)*),
                     ::std::result::Result<$rret, $aerr>,
                 >),
             )*
@@ -85,7 +85,7 @@ macro_rules! ghost_chan_new {
                     $crate::dependencies::tracing::trace!(request = stringify!($rname));
                     let (send, recv) = $crate::dependencies::futures::channel::oneshot::channel();
                     let t = $crate::ghost_chan::GhostChanItem {
-                        input: ($($pname),*),
+                        input: ($($pname,)*),
                         respond: Box::new(move |res| {
                             if send.send((res, $crate::dependencies::tracing::debug_span!(
                                 concat!(stringify!($rname), "_respond")
@@ -122,6 +122,8 @@ macro_rules! ghost_chan_new {
                     }
                 )*
             }
+
+            impl<T: $crate::ghost_chan::GhostChanSend<$aname>> [< $aname Send >] for T {}
         }
     };
     (

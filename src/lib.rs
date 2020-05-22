@@ -204,5 +204,8 @@ pub mod ghost_chan;
 mod macros;
 pub use macros::*;
 
+mod r#macro;
+pub use r#macro::*;
+
 mod tests;
 pub use tests::*;

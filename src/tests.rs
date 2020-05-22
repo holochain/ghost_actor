@@ -77,6 +77,8 @@ pub mod example {
             fn test_msg(brains: String, sandwich: String) -> String;
             /// my custom request 2
             fn test_msg2() -> String;
+            /// my empty request
+            fn test_msg3() -> ();
         }
     }
 
@@ -97,6 +99,26 @@ pub mod example {
         Error(MyError),
         Api {
             TestMsg("will respond with 'echo: input'", String, String,),
+        }
+    }
+
+    crate::ghost_actor_new! {
+        /// this is my custom actor doc
+        pub actor MyActorNew<MyError> {
+            /// A test message, sends a String, receives a String.
+            fn test_message(i: u32, s: String) -> String;
+
+            /// A test function, output adds 1 to input.
+            fn add_one(input: u32) -> u32;
+
+            /// Ensure we can take params that don't implement Debug.
+            fn req_not_debug(input: NotDebug) -> ();
+
+            /// Makes an internal_sender request from outside. In reality, you'd never need a command like this.
+            fn funky_internal(input: String) -> String;
+
+            /// Calls internal ghost_actor_shutdown_immediate() command. In reality, you'd never need a command like this.
+            fn funky_stop() -> ();
         }
     }
 
