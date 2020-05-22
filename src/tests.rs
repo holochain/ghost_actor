@@ -70,6 +70,16 @@ pub mod example {
         }
     }
 
+    crate::ghost_chan_new! {
+        /// this is my custom doc
+        pub chan MyCustomChanNew<MyError> {
+            /// my custom request 1
+            fn test_msg(brains: String, sandwich: String) -> String;
+            /// my custom request 2
+            fn test_msg2() -> String;
+        }
+    }
+
     crate::ghost_chan! {
         Doc("custom chan"),
         Visibility(pub),

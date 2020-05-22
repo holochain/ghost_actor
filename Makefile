@@ -4,11 +4,11 @@
 
 .PHONY: all publish test fmt clean tools tool_rust tool_fmt tool_readme
 
-RUSTFLAGS += -D warnings
+#RUSTFLAGS += ...
 
 SHELL = /usr/bin/env sh
 
-ENV = RUSTFLAGS='$(RUSTFLAGS)' CARGO_BUILD_JOBS='$(shell nproc || sysctl -n hw.physicalcpu)' NUM_JOBS='$(shell nproc || sysctl -n hw.physicalcpu)' CARGO_INCREMENTAL='1'
+ENV = RUSTFLAGS='$(RUSTFLAGS)' CARGO_BUILD_JOBS='$(shell nproc || sysctl -n hw.physicalcpu)' NUM_JOBS='$(shell nproc || sysctl -n hw.physicalcpu)'
 
 all: test
 
