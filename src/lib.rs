@@ -22,36 +22,20 @@
 //! # use ghost_actor::example::MyError;
 //! # use ghost_actor::dependencies::futures::future::FutureExt;
 //! ghost_actor::ghost_actor! {
-//!     // Api Docs that should appear on the Sender type for your actor.
-//!     Doc(r#"My doc summary line.
+//!     // Set the visibility of your actor.
+//!     // Name your actor.
+//!     // Specify the Error type for your actor.
+//!     // The error type must implement `From<GhostError>`.
 //!
-//! My doc detail line."#),
+//!     /// Api Docs that should appear on the Sender type for your actor.
+//!     pub actor MyActor<MyError> {
+//!         // specify your actor api
 //!
-//!     // set the visibility of your actor - `Visibility()` for private.
-//!     Visibility(pub),
-//!
-//!     // name your actor - the main reference for interacting with your
-//!     //                   actor will have the suffix "Sender" appended.
-//!     //                   In this case: "MyActorSender".
-//!     Name(MyActor),
-//!
-//!     // any custom error set here must implement `From<GhostError>`
-//!     Error(MyError),
-//!
-//!     // specify your actor api
-//!     Api {
-//!         // Method names will be transformed into snake_case,
-//!         // so, this method will be called "add_one".
-//!         AddOne(
-//!             // this string will be applied as docs to sender/handler
-//!             "A test function, output adds 1 to input.",
-//!
-//!             // the input type for your api
-//!             u32,
-//!
-//!             // the output type for your api
-//!             u32,
-//!         ),
+//!         /// This string will be applied as docs to sender/handler.
+//!         fn add_one(
+//!             // any api params here
+//!             input: u32,
+//!         ) -> u32; // return type here
 //!     }
 //! }
 //!
@@ -200,9 +184,6 @@ mod types;
 pub use types::*;
 
 pub mod ghost_chan;
-
-mod macros;
-pub use macros::*;
 
 mod r#macro;
 pub use r#macro::*;

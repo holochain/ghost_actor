@@ -1,7 +1,7 @@
 /// The `ghost_chan!` macro generates an enum and helper types that make it
 /// easy to make inline async requests and await responses.
 #[macro_export]
-macro_rules! ghost_chan_new {
+macro_rules! ghost_chan {
     // using @inner_ self references so we don't have to export / pollute
     // a bunch of sub macros.
 
@@ -14,7 +14,7 @@ macro_rules! ghost_chan_new {
         }
     ) => {
         $crate::dependencies::paste::item! {
-            $crate::ghost_chan_new! { @inner
+            $crate::ghost_chan! { @inner
                 $($ameta)* ($($avis)*) $aname $aerr [$(
                     ($($rmeta)*) $rname [< $rname:camel >] $rret [$(
                         $pname $pty
@@ -30,14 +30,14 @@ macro_rules! ghost_chan_new {
             )*]
         )*]
     ) => {
-        $crate::ghost_chan_new! { @inner_protocol
+        $crate::ghost_chan! { @inner_protocol
             $($ameta)* ($($avis)*) $aname $aerr [$(
                 ($($rmeta)*) $rname $rnamec $rret [$(
                     $pname $pty
                 )*]
             )*]
         }
-        $crate::ghost_chan_new! { @inner_send_trait
+        $crate::ghost_chan! { @inner_send_trait
             $($ameta)* ($($avis)*) $aname $aerr [$(
                 ($($rmeta)*) $rname $rnamec $rret [$(
                     $pname $pty
@@ -129,21 +129,21 @@ macro_rules! ghost_chan_new {
     (
         $(#[$ameta:meta])* pub ( $($avis:tt)* ) chan $($rest:tt)*
     ) => {
-        $crate::ghost_chan_new! { @inner_tx
+        $crate::ghost_chan! { @inner_tx
             #[$($ameta)*] (pub($($avis)*)) chan $($rest)*
         }
     };
     (
         $(#[$ameta:meta])* pub chan $($rest:tt)*
     ) => {
-        $crate::ghost_chan_new! { @inner_tx
+        $crate::ghost_chan! { @inner_tx
             #[$($ameta)*] (pub) chan $($rest)*
         }
     };
     (
         $(#[$ameta:meta])* chan $($rest:tt)*
     ) => {
-        $crate::ghost_chan_new! { @inner_tx
+        $crate::ghost_chan! { @inner_tx
             #[$($ameta)*] () chan $($rest)*
         }
     };

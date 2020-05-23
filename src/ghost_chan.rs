@@ -47,9 +47,5 @@ impl<I, O> std::fmt::Debug for GhostChanItem<I, O> {
 }
 
 #[macro_use]
-mod ghost_chan_macros;
-pub use ghost_chan_macros::*;
-
-#[macro_use]
 mod r#macro;
 pub use r#macro::*;

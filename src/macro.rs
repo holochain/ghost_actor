@@ -1,6 +1,6 @@
 /// Call `ghost_actor!` to generate the boilerplate for GhostActor implementations.
 #[macro_export]
-macro_rules! ghost_actor_new {
+macro_rules! ghost_actor {
     // using @inner_ self references so we don't have to export / pollute
     // a bunch of sub macros.
 
@@ -13,7 +13,7 @@ macro_rules! ghost_actor_new {
         }
     ) => {
         $crate::dependencies::paste::item! {
-            $crate::ghost_actor_new! { @inner
+            $crate::ghost_actor! { @inner
                 $($ameta)* ($($avis)*) $aname $aerr [$(
                     ($($rmeta)*) $rname [< $rname:camel >] $rret [$(
                         $pname $pty
@@ -30,7 +30,7 @@ macro_rules! ghost_actor_new {
         )*]
     ) => {
         $crate::dependencies::paste::item! {
-            $crate::ghost_chan_new! { @inner
+            $crate::ghost_chan! { @inner
                 $($ameta)* (/* not pub */ pub) $aname $aerr [
                     $(
                         ($($rmeta)*) $rname $rnamec [< $aname Future >] <$rret> [$(
@@ -51,28 +51,28 @@ macro_rules! ghost_actor_new {
                     [ ]
                 ]
             }
-            $crate::ghost_actor_new! { @inner_types
+            $crate::ghost_actor! { @inner_types
                 $($ameta)* ($($avis)*) $aname $aerr [$(
                     ($($rmeta)*) $rname $rnamec $rret [$(
                         $pname $pty
                     )*]
                 )*]
             }
-            $crate::ghost_actor_new! { @inner_handler
+            $crate::ghost_actor! { @inner_handler
                 $($ameta)* ($($avis)*) $aname $aerr [$(
                     ($($rmeta)*) $rname $rnamec $rret [$(
                         $pname $pty
                     )*]
                 )*]
             }
-            $crate::ghost_actor_new! { @inner_sender
+            $crate::ghost_actor! { @inner_sender
                 $($ameta)* ($($avis)*) $aname $aerr [$(
                     ($($rmeta)*) $rname $rnamec $rret [$(
                         $pname $pty
                     )*]
                 )*]
             }
-            $crate::ghost_actor_new! { @inner_internal_sender
+            $crate::ghost_actor! { @inner_internal_sender
                 $($ameta)* ($($avis)*) $aname $aerr [$(
                     ($($rmeta)*) $rname $rnamec $rret [$(
                         $pname $pty
@@ -406,21 +406,21 @@ macro_rules! ghost_actor_new {
     (
         $(#[$ameta:meta])* pub ( $($avis:tt)* ) actor $($rest:tt)*
     ) => {
-        $crate::ghost_actor_new! { @inner_tx
+        $crate::ghost_actor! { @inner_tx
             #[$($ameta)*] (pub($($avis)*)) actor $($rest)*
         }
     };
     (
         $(#[$ameta:meta])* pub actor $($rest:tt)*
     ) => {
-        $crate::ghost_actor_new! { @inner_tx
+        $crate::ghost_actor! { @inner_tx
             #[$($ameta)*] (pub) actor $($rest)*
         }
     };
     (
         $(#[$ameta:meta])* actor $($rest:tt)*
     ) => {
-        $crate::ghost_actor_new! { @inner_tx
+        $crate::ghost_actor! { @inner_tx
             #[$($ameta)*] () actor $($rest)*
         }
     };

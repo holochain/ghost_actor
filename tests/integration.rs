@@ -9,23 +9,20 @@ mod my_mod {
     }
 
     ghost_actor::ghost_chan! {
-        Doc("test chan"),
-        Visibility(pub),
-        Name(MyChan),
-        Error(MyError),
-        Api {
-            MyFn("", i32, i32,),
+        /// a
+        pub chan MyChan<MyError> {
+        /// a
+            fn my_fn(input: i32) -> i32;
         }
     }
 
     ghost_actor::ghost_actor! {
-        Doc("test actor"),
-        Visibility(pub),
-        Name(MyActor),
-        Error(MyError),
-        Api {
-            MyFn("", i32, i32,),
-            MyInner("", i32, i32,),
+        /// a
+        pub actor MyActor<MyError> {
+        /// a
+            fn my_fn(input: i32) -> i32;
+        /// a
+            fn my_inner(input: i32) -> i32;
         }
     }
 }
@@ -73,7 +70,7 @@ mod my_impl {
             match input {
                 super::my_mod::MyChan::MyFn(input) => {
                     let ghost_actor::ghost_chan::GhostChanItem {
-                        input,
+                        input: (input,),
                         respond,
                         span,
                     } = input;
@@ -91,7 +88,7 @@ mod my_impl {
             match input {
                 super::my_mod::MyChan::MyFn(input) => {
                     let ghost_actor::ghost_chan::GhostChanItem {
-                        input,
+                        input: (input,),
                         respond,
                         span,
                     } = input;
