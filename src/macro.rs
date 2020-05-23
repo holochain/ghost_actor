@@ -14,7 +14,7 @@ macro_rules! ghost_actor {
     ) => {
         $crate::dependencies::paste::item! {
             $crate::ghost_actor! { @inner
-                $($ameta)* ($($avis)*) $aname $aerr [$(
+                ($($ameta)*) ($($avis)*) $aname $aerr [$(
                     ($($rmeta)*) $rname [< $rname:camel >] $rret [$(
                         $pname $pty
                     )*]
@@ -23,7 +23,7 @@ macro_rules! ghost_actor {
         }
     };
     (   @inner
-        $($ameta:meta)* ($($avis:tt)*) $aname:ident $aerr:ty [$(
+        ($($ameta:meta)*) ($($avis:tt)*) $aname:ident $aerr:ty [$(
             ($($rmeta:meta)*) $rname:ident $rnamec:ident $rret:ty [$(
                 $pname:ident $pty:ty
             )*]
@@ -31,7 +31,7 @@ macro_rules! ghost_actor {
     ) => {
         $crate::dependencies::paste::item! {
             $crate::ghost_chan! { @inner
-                $($ameta)* (/* not pub */ pub) $aname $aerr [
+                ($($ameta)*) (/* not pub */ pub) $aname $aerr [
                     $(
                         ($($rmeta)*) $rname $rnamec [< $aname Future >] <$rret> [$(
                             $pname $pty
@@ -52,28 +52,28 @@ macro_rules! ghost_actor {
                 ]
             }
             $crate::ghost_actor! { @inner_types
-                $($ameta)* ($($avis)*) $aname $aerr [$(
+                ($($ameta)*) ($($avis)*) $aname $aerr [$(
                     ($($rmeta)*) $rname $rnamec $rret [$(
                         $pname $pty
                     )*]
                 )*]
             }
             $crate::ghost_actor! { @inner_handler
-                $($ameta)* ($($avis)*) $aname $aerr [$(
+                ($($ameta)*) ($($avis)*) $aname $aerr [$(
                     ($($rmeta)*) $rname $rnamec $rret [$(
                         $pname $pty
                     )*]
                 )*]
             }
             $crate::ghost_actor! { @inner_sender
-                $($ameta)* ($($avis)*) $aname $aerr [$(
+                ($($ameta)*) ($($avis)*) $aname $aerr [$(
                     ($($rmeta)*) $rname $rnamec $rret [$(
                         $pname $pty
                     )*]
                 )*]
             }
             $crate::ghost_actor! { @inner_internal_sender
-                $($ameta)* ($($avis)*) $aname $aerr [$(
+                ($($ameta)*) ($($avis)*) $aname $aerr [$(
                     ($($rmeta)*) $rname $rnamec $rret [$(
                         $pname $pty
                     )*]
@@ -82,7 +82,7 @@ macro_rules! ghost_actor {
         }
     };
     (   @inner_types
-        $($ameta:meta)* ($($avis:tt)*) $aname:ident $aerr:ty [$(
+        ($($ameta:meta)*) ($($avis:tt)*) $aname:ident $aerr:ty [$(
             ($($rmeta:meta)*) $rname:ident $rnamec:ident $rret:ty [$(
                 $pname:ident $pty:ty
             )*]
@@ -100,7 +100,7 @@ macro_rules! ghost_actor {
         }
     };
     (   @inner_handler
-        $($ameta:meta)* ($($avis:tt)*) $aname:ident $aerr:ty [$(
+        ($($ameta:meta)*) ($($avis:tt)*) $aname:ident $aerr:ty [$(
             ($($rmeta:meta)*) $rname:ident $rnamec:ident $rret:ty [$(
                 $pname:ident $pty:ty
             )*]
@@ -142,7 +142,7 @@ macro_rules! ghost_actor {
         }
     };
     (   @inner_sender
-        $($ameta:meta)* ($($avis:tt)*) $aname:ident $aerr:ty [$(
+        ($($ameta:meta)*) ($($avis:tt)*) $aname:ident $aerr:ty [$(
             ($($rmeta:meta)*) $rname:ident $rnamec:ident $rret:ty [$(
                 $pname:ident $pty:ty
             )*]
@@ -326,7 +326,7 @@ macro_rules! ghost_actor {
         }
     };
     (   @inner_internal_sender
-        $($ameta:meta)* ($($avis:tt)*) $aname:ident $aerr:ty [$(
+        ($($ameta:meta)*) ($($avis:tt)*) $aname:ident $aerr:ty [$(
             ($($rmeta:meta)*) $rname:ident $rnamec:ident $rret:ty [$(
                 $pname:ident $pty:ty
             )*]
@@ -407,21 +407,21 @@ macro_rules! ghost_actor {
         $(#[$ameta:meta])* pub ( $($avis:tt)* ) actor $($rest:tt)*
     ) => {
         $crate::ghost_actor! { @inner_tx
-            #[$($ameta)*] (pub($($avis)*)) actor $($rest)*
+            $(#[$ameta])* (pub($($avis)*)) actor $($rest)*
         }
     };
     (
         $(#[$ameta:meta])* pub actor $($rest:tt)*
     ) => {
         $crate::ghost_actor! { @inner_tx
-            #[$($ameta)*] (pub) actor $($rest)*
+            $(#[$ameta])* (pub) actor $($rest)*
         }
     };
     (
         $(#[$ameta:meta])* actor $($rest:tt)*
     ) => {
         $crate::ghost_actor! { @inner_tx
-            #[$($ameta)*] () actor $($rest)*
+            $(#[$ameta])* () actor $($rest)*
         }
     };
 }

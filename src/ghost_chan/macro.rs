@@ -15,7 +15,7 @@ macro_rules! ghost_chan {
     ) => {
         $crate::dependencies::paste::item! {
             $crate::ghost_chan! { @inner
-                $($ameta)* ($($avis)*) $aname $aerr [$(
+                ($($ameta)*) ($($avis)*) $aname $aerr [$(
                     ($($rmeta)*) $rname [< $rname:camel >] $rret [$(
                         $pname $pty
                     )*]
@@ -24,21 +24,21 @@ macro_rules! ghost_chan {
         }
     };
     (   @inner
-        $($ameta:meta)* ($($avis:tt)*) $aname:ident $aerr:ty [$(
+        ($($ameta:meta)*) ($($avis:tt)*) $aname:ident $aerr:ty [$(
             ($($rmeta:meta)*) $rname:ident $rnamec:ident $rret:ty [$(
                 $pname:ident $pty:ty
             )*]
         )*]
     ) => {
         $crate::ghost_chan! { @inner_protocol
-            $($ameta)* ($($avis)*) $aname $aerr [$(
+            ($($ameta)*) ($($avis)*) $aname $aerr [$(
                 ($($rmeta)*) $rname $rnamec $rret [$(
                     $pname $pty
                 )*]
             )*]
         }
         $crate::ghost_chan! { @inner_send_trait
-            $($ameta)* ($($avis)*) $aname $aerr [$(
+            ($($ameta)*) ($($avis)*) $aname $aerr [$(
                 ($($rmeta)*) $rname $rnamec $rret [$(
                     $pname $pty
                 )*]
@@ -46,14 +46,14 @@ macro_rules! ghost_chan {
         }
     };
     (   @inner_protocol
-        $($ameta:meta)* ($($avis:tt)*) $aname:ident $aerr:ty [$(
+        ($($ameta:meta)*) ($($avis:tt)*) $aname:ident $aerr:ty [$(
             ($($rmeta:meta)*) $rname:ident $rnamec:ident $rret:ty [$(
                 $pname:ident $pty:ty
             )*]
         )*]
     ) => {
-        #[derive(Debug)]
         $(#[$ameta])*
+        #[derive(Debug)]
         $($avis)* enum $aname {
             $(
                 $(#[$rmeta])*
@@ -65,7 +65,7 @@ macro_rules! ghost_chan {
         }
     };
     (   @inner_send_trait
-        $($ameta:meta)* ($($avis:tt)*) $aname:ident $aerr:ty [$(
+        ($($ameta:meta)*) ($($avis:tt)*) $aname:ident $aerr:ty [$(
             ($($rmeta:meta)*) $rname:ident $rnamec:ident $rret:ty [$(
                 $pname:ident $pty:ty
             )*]
@@ -130,21 +130,21 @@ macro_rules! ghost_chan {
         $(#[$ameta:meta])* pub ( $($avis:tt)* ) chan $($rest:tt)*
     ) => {
         $crate::ghost_chan! { @inner_tx
-            #[$($ameta)*] (pub($($avis)*)) chan $($rest)*
+            $(#[$ameta])* (pub($($avis)*)) chan $($rest)*
         }
     };
     (
         $(#[$ameta:meta])* pub chan $($rest:tt)*
     ) => {
         $crate::ghost_chan! { @inner_tx
-            #[$($ameta)*] (pub) chan $($rest)*
+            $(#[$ameta])* (pub) chan $($rest)*
         }
     };
     (
         $(#[$ameta:meta])* chan $($rest:tt)*
     ) => {
         $crate::ghost_chan! { @inner_tx
-            #[$($ameta)*] () chan $($rest)*
+            $(#[$ameta])* () chan $($rest)*
         }
     };
 }

@@ -9,19 +9,14 @@ mod my_mod {
     }
 
     ghost_actor::ghost_chan! {
-        /// a
         pub chan MyChan<MyError> {
-        /// a
             fn my_fn(input: i32) -> i32;
         }
     }
 
     ghost_actor::ghost_actor! {
-        /// a
         pub actor MyActor<MyError> {
-        /// a
             fn my_fn(input: i32) -> i32;
-        /// a
             fn my_inner(input: i32) -> i32;
         }
     }

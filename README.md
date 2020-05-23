@@ -22,12 +22,12 @@ or if you explicitly call `ghost_actor_shutdown()`, the driver task
 
 ```rust
 ghost_actor::ghost_actor! {
-    /// Api Docs that should appear on the Sender type for your actor.
-
     // Set the visibility of your actor.
     // Name your actor.
     // Specify the Error type for your actor.
     // The error type must implement `From<GhostError>`.
+
+    /// Api Docs that should appear on the Sender type for your actor.
     pub actor MyActor<MyError> {
         // specify your actor api
 
