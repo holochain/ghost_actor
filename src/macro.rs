@@ -31,7 +31,7 @@ macro_rules! ghost_actor {
     ) => {
         $crate::dependencies::paste::item! {
             $crate::ghost_chan! { @inner
-                ($($ameta)*) (/* not pub */ pub) $aname $aerr [
+                ($($ameta)*) (/* not pub */) $aname $aerr [
                     $(
                         ($($rmeta)*) $rname $rnamec [< $aname Future >] <$rret> [$(
                             $pname $pty
@@ -233,9 +233,7 @@ macro_rules! ghost_actor {
                     let driver_fut = async move {
                         while let Some(proto) = recv.next().await {
                             match proto {
-                                $aname::GhostActorShutdown(item) => {
-                                    let $crate::ghost_chan::GhostChanItem {
-                                        respond, span, .. } = item;
+                                $aname::GhostActorShutdown { span, respond } => {
                                     let _g = span.enter();
                                     *shutdown
                                         .write()
@@ -243,11 +241,9 @@ macro_rules! ghost_actor {
                                         = true;
                                     let _ = respond(Ok(()));
                                 }
-                                $aname::GhostActorCustom(item) => {
-                                    let $crate::ghost_chan::GhostChanItem {
-                                        input, respond, span } = item;
+                                $aname::GhostActorCustom { span, respond, input } => {
                                     let _g = span.enter();
-                                    match input.0.downcast::<C>() {
+                                    match input.downcast::<C>() {
                                         Ok(input) => {
                                             let result = handler.handle_ghost_actor_custom(*input);
                                             let _ = respond(result);
@@ -258,11 +254,9 @@ macro_rules! ghost_actor {
                                         }
                                     }
                                 }
-                                $aname::GhostActorInternal(item) => {
-                                    let $crate::ghost_chan::GhostChanItem {
-                                        input, respond, span } = item;
+                                $aname::GhostActorInternal { span, respond, input } => {
                                     let _g = span.enter();
-                                    let input = input.0.downcast::<I>()
+                                    let input = input.downcast::<I>()
                                         // shouldn't happen -
                                         // we control the incoming types
                                         .expect("bad type sent into internal");
@@ -270,11 +264,8 @@ macro_rules! ghost_actor {
                                     let _ = respond(result);
                                 }
                                 $(
-                                    $aname::$rnamec(item) => {
-                                        let $crate::ghost_chan::GhostChanItem {
-                                            input, respond, span } = item;
+                                    $aname::$rnamec { span, respond, $($pname,)* } => {
                                         let _g = span.enter();
-                                        let ($($pname,)*) = input;
                                         let result = handler.[< handle_ $rname >](
                                             $($pname,)*
                                         );

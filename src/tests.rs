@@ -128,11 +128,7 @@ mod tests {
 
         fn handle_ghost_actor_custom(&mut self, input: MyCustomChan) -> MyActorResult<()> {
             match input {
-                MyCustomChan::TestMsg(ghost_chan::GhostChanItem {
-                    input: (input,),
-                    respond,
-                    ..
-                }) => {
+                MyCustomChan::TestMsg { respond, input, .. } => {
                     respond(Ok(format!("custom respond to: {}", input))).unwrap();
                 }
             }
@@ -141,11 +137,7 @@ mod tests {
 
         fn handle_ghost_actor_internal(&mut self, input: MyInternalChan) -> MyActorResult<()> {
             match input {
-                MyInternalChan::TestMsg(ghost_chan::GhostChanItem {
-                    input: (input,),
-                    respond,
-                    ..
-                }) => {
+                MyInternalChan::TestMsg { respond, input, .. } => {
                     respond(Ok(format!("internal respond to: {}", input))).unwrap();
                 }
             }

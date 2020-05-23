@@ -63,12 +63,11 @@ mod my_impl {
             input: super::my_mod::MyChan,
         ) -> super::my_mod::MyActorResult<()> {
             match input {
-                super::my_mod::MyChan::MyFn(input) => {
-                    let ghost_actor::ghost_chan::GhostChanItem {
-                        input: (input,),
-                        respond,
-                        span,
-                    } = input;
+                super::my_mod::MyChan::MyFn {
+                    span,
+                    respond,
+                    input,
+                } => {
                     let _g = span.enter();
                     respond(Ok(input + 1))?;
                 }
@@ -81,12 +80,11 @@ mod my_impl {
             input: super::my_mod::MyChan,
         ) -> super::my_mod::MyActorResult<()> {
             match input {
-                super::my_mod::MyChan::MyFn(input) => {
-                    let ghost_actor::ghost_chan::GhostChanItem {
-                        input: (input,),
-                        respond,
-                        span,
-                    } = input;
+                super::my_mod::MyChan::MyFn {
+                    span,
+                    respond,
+                    input,
+                } => {
                     let _g = span.enter();
                     respond(Ok(input + 1))?;
                 }

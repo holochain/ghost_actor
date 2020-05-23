@@ -53,15 +53,41 @@ macro_rules! ghost_chan {
         )*]
     ) => {
         $(#[$ameta])*
-        #[derive(Debug)]
         $($avis)* enum $aname {
             $(
                 $(#[$rmeta])*
-                $rnamec ($crate::ghost_chan::GhostChanItem<
-                    ($($pty,)*),
-                    ::std::result::Result<$rret, $aerr>,
-                >),
+                $rnamec {
+                    /// Tracing span from request invocation.
+                    span: $crate::dependencies::tracing::Span,
+
+                    /// Response callback - respond to the request.
+                    respond: $crate::ghost_chan::GhostChanRespond<
+                        ::std::result::Result<$rret, $aerr>,
+                    >,
+
+                    $(
+                        /// Input parameter.
+                        $pname: $pty,
+                    )*
+                },
             )*
+        }
+
+        impl ::std::fmt::Debug for $aname {
+            fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+                match self {
+                    $(
+                        $aname :: $rnamec { .. } => {
+                            write!(
+                                f,
+                                "{}::{} {{ .. }}",
+                                stringify!($aname),
+                                stringify!($rnamec),
+                            )
+                        }
+                    )*
+                }
+            }
         }
     };
     (   @inner_send_trait
@@ -84,8 +110,9 @@ macro_rules! ghost_chan {
                 {
                     $crate::dependencies::tracing::trace!(request = stringify!($rname));
                     let (send, recv) = $crate::dependencies::futures::channel::oneshot::channel();
-                    let t = $crate::ghost_chan::GhostChanItem {
-                        input: ($($pname,)*),
+
+                    let t = $aname :: $rnamec {
+                        span: $crate::dependencies::tracing::debug_span!(stringify!($rname)),
                         respond: Box::new(move |res| {
                             if send.send((res, $crate::dependencies::tracing::debug_span!(
                                 concat!(stringify!($rname), "_respond")
@@ -94,10 +121,10 @@ macro_rules! ghost_chan {
                             }
                             Ok(())
                         }),
-                        span: $crate::dependencies::tracing::debug_span!(stringify!($rname)),
+                        $(
+                            $pname,
+                        )*
                     };
-
-                    let t = $aname :: $rnamec ( t );
 
                     let send_fut = sender.ghost_chan_send(t);
 
