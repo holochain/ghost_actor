@@ -28,24 +28,6 @@ impl<T: 'static + Send> GhostChanSend<T> for ::futures::channel::mpsc::Sender<T>
     }
 }
 
-/// Container type for GhostChan message variants.
-pub struct GhostChanItem<I, O> {
-    /// The request input type.
-    pub input: I,
-
-    /// The response callback for responding to the request.
-    pub respond: GhostChanRespond<O>,
-
-    /// A tracing span for logically following the request/response.
-    pub span: tracing::Span,
-}
-
-impl<I, O> std::fmt::Debug for GhostChanItem<I, O> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "GhostChanItem")
-    }
-}
-
 #[macro_use]
-mod ghost_chan_macros;
-pub use ghost_chan_macros::*;
+mod r#macro;
+pub use r#macro::*;

@@ -9,23 +9,15 @@ mod my_mod {
     }
 
     ghost_actor::ghost_chan! {
-        Doc("test chan"),
-        Visibility(pub),
-        Name(MyChan),
-        Error(MyError),
-        Api {
-            MyFn("", i32, i32,),
+        pub chan MyChan<MyError> {
+            fn my_fn(input: i32) -> i32;
         }
     }
 
     ghost_actor::ghost_actor! {
-        Doc("test actor"),
-        Visibility(pub),
-        Name(MyActor),
-        Error(MyError),
-        Api {
-            MyFn("", i32, i32,),
-            MyInner("", i32, i32,),
+        pub actor MyActor<MyError> {
+            fn my_fn(input: i32) -> i32;
+            fn my_inner(input: i32) -> i32;
         }
     }
 }
@@ -71,12 +63,11 @@ mod my_impl {
             input: super::my_mod::MyChan,
         ) -> super::my_mod::MyActorResult<()> {
             match input {
-                super::my_mod::MyChan::MyFn(input) => {
-                    let ghost_actor::ghost_chan::GhostChanItem {
-                        input,
-                        respond,
-                        span,
-                    } = input;
+                super::my_mod::MyChan::MyFn {
+                    span,
+                    respond,
+                    input,
+                } => {
                     let _g = span.enter();
                     respond(Ok(input + 1))?;
                 }
@@ -89,12 +80,11 @@ mod my_impl {
             input: super::my_mod::MyChan,
         ) -> super::my_mod::MyActorResult<()> {
             match input {
-                super::my_mod::MyChan::MyFn(input) => {
-                    let ghost_actor::ghost_chan::GhostChanItem {
-                        input,
-                        respond,
-                        span,
-                    } = input;
+                super::my_mod::MyChan::MyFn {
+                    span,
+                    respond,
+                    input,
+                } => {
                     let _g = span.enter();
                     respond(Ok(input + 1))?;
                 }

@@ -4,51 +4,32 @@
 /// ```
 /// use ghost_actor::example::MyError;
 /// ghost_actor::ghost_chan! {
-///     Doc("custom chan"),
-///     Visibility(pub),
-///     Name(MyCustomChan),
-///     Error(MyError),
-///     Api {
-///         TestMsg("will respond with 'echo: input'", String, String,),
+///     /// custom chan
+///     pub chan MyCustomChan<MyError> {
+///         /// will respond with 'echo: input'
+///         fn test_msg(input: String) -> String;
 ///     }
 /// }
 ///
 /// ghost_actor::ghost_chan! {
-///     Doc("internal chan"),
-///     Visibility(pub),
-///     Name(MyInternalChan),
-///     Error(MyError),
-///     Api {
-///         TestMsg("will respond with 'echo: input'", String, String,),
+///     /// internal chan
+///     pub chan MyInternalChan<MyError> {
+///         /// will respond with 'echo: input'
+///         fn test_msg(input: String) -> String;
 ///     }
 /// }
 ///
 /// ghost_actor::ghost_actor! {
-///     Doc("test actor"),
-///     Visibility(pub),
-///     Name(MyActor),
-///     Error(MyError),
-///     Api {
-///         TestMessage(
-///             "A test message, sends a String, receives a String.",
-///             String,
-///             String,
-///         ),
-///         AddOne(
-///             "A test function, output adds 1 to input.",
-///             u32,
-///             u32,
-///         ),
-///         FunkyInternal(
-///             "Makes an internal_sender request from outside. In reality, you'd never need a command like this.",
-///             String,
-///             String,
-///         ),
-///         FunkyStop(
-///             "Calls internal ghost_actor_shutdown_immediate() command. In reality, you'd never need a command like this.",
-///             (),
-///             (),
-///         ),
+///     /// test actor
+///     pub actor MyActor<MyError> {
+///         /// A test message, sends a String, receives a String.
+///         fn test_message(input: String) -> String;
+///         /// A test function, output adds 1 to input.
+///         fn add_one(input: u32) -> u32;
+///         /// Makes an internal_sender request from outside. In reality, you'd never need a command like this.
+///         fn funky_internal(input: String) -> String;
+///         /// Calls internal ghost_actor_shutdown_immediate() command. In reality, you'd never need a command like this.
+///         fn funky_stop() -> ();
 ///     }
 /// }
 /// # pub fn main() {}
@@ -71,56 +52,38 @@ pub mod example {
     }
 
     crate::ghost_chan! {
-        Doc("custom chan"),
-        Visibility(pub),
-        Name(MyCustomChan),
-        Error(MyError),
-        Api {
-            TestMsg("will respond with 'echo: input'", String, String,),
+        /// custom chan
+        pub chan MyCustomChan<MyError> {
+            /// will respond with 'echo: input'.
+            fn test_msg(input: String) -> String;
         }
     }
 
     crate::ghost_chan! {
-        Doc("internal chan"),
-        Visibility(pub),
-        Name(MyInternalChan),
-        Error(MyError),
-        Api {
-            TestMsg("will respond with 'echo: input'", String, String,),
+        /// custom chan
+        pub chan MyInternalChan<MyError> {
+            /// will respond with 'echo: input'.
+            fn test_msg(input: String) -> String;
         }
     }
 
     crate::ghost_actor! {
-        Doc("test actor"),
-        Visibility(pub),
-        Name(MyActor),
-        Error(MyError),
-        Api {
-            TestMessage(
-                "A test message, sends a String, receives a String.",
-                String,
-                String,
-            ),
-            AddOne(
-                "A test function, output adds 1 to input.",
-                u32,
-                u32,
-            ),
-            ReqNotDebug(
-                "Ensure we can take params that don't implement Deug",
-                NotDebug,
-                (),
-            ),
-            FunkyInternal(
-                "Makes an internal_sender request from outside. In reality, you'd never need a command like this.",
-                String,
-                String,
-            ),
-            FunkyStop(
-                "Calls internal ghost_actor_shutdown_immediate() command. In reality, you'd never need a command like this.",
-                (),
-                (),
-            ),
+        /// this is my custom actor doc
+        pub actor MyActor<MyError> {
+            /// A test message, sends a String, receives a String.
+            fn test_message(input: String) -> String;
+
+            /// A test function, output adds 1 to input.
+            fn add_one(input: u32) -> u32;
+
+            /// Ensure we can take params that don't implement Debug.
+            fn req_not_debug(input: NotDebug) -> ();
+
+            /// Makes an internal_sender request from outside. In reality, you'd never need a command like this.
+            fn funky_internal(input: String) -> String;
+
+            /// Calls internal ghost_actor_shutdown_immediate() command. In reality, you'd never need a command like this.
+            fn funky_stop() -> ();
         }
     }
 }
@@ -165,7 +128,7 @@ mod tests {
 
         fn handle_ghost_actor_custom(&mut self, input: MyCustomChan) -> MyActorResult<()> {
             match input {
-                MyCustomChan::TestMsg(ghost_chan::GhostChanItem { input, respond, .. }) => {
+                MyCustomChan::TestMsg { respond, input, .. } => {
                     respond(Ok(format!("custom respond to: {}", input))).unwrap();
                 }
             }
@@ -174,7 +137,7 @@ mod tests {
 
         fn handle_ghost_actor_internal(&mut self, input: MyInternalChan) -> MyActorResult<()> {
             match input {
-                MyInternalChan::TestMsg(ghost_chan::GhostChanItem { input, respond, .. }) => {
+                MyInternalChan::TestMsg { respond, input, .. } => {
                     respond(Ok(format!("internal respond to: {}", input))).unwrap();
                 }
             }

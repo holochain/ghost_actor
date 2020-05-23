@@ -4,115 +4,134 @@ macro_rules! ghost_actor {
     // using @inner_ self references so we don't have to export / pollute
     // a bunch of sub macros.
 
-    // -- public api arms -- //
+    // -- inner_tx does some translation from our external macro api
+    // -- to a simpler internal api
 
-    (
-        Doc($tdoc:expr),
-        Visibility($($vis:tt)*),
-        Name($name:ident),
-        Error($error:ty),
-        Api { $( $req_name:ident ( $doc:expr, $req_type:ty, $res_type:ty, ) ),*, }
+    (   @inner_tx
+        $(#[$ameta:meta])*
+        ($($avis:tt)*) actor $aname:ident<$aerr:ty> {
+            $(
+                $(#[$rmeta:meta])* fn $rname:ident ( $($pname:ident: $pty:ty),* $(,)? ) -> $rret:ty;
+            )*
+        }
     ) => {
-        $crate::ghost_actor! { @inner
-            $tdoc, ($($vis)*), $name, $error, $( $doc, $req_name, $req_type, $res_type ),*
+        $crate::dependencies::paste::item! {
+            $crate::ghost_actor! { @inner
+                ($($ameta)*) ($($avis)*) $aname $aerr [$(
+                    ($($rmeta)*) $rname [< $rname:camel >] $rret [$(
+                        $pname $pty
+                    )*]
+                )*]
+            }
         }
     };
 
-    // -- "inner" arm dispatches to further individual inner arm helpers -- //
+    // -- the main entrypoint to our internal api
+    // -- dispatches to sub functions
 
-    ( @inner
-        $tdoc:expr, ($($vis:tt)*), $name:ident, $error:ty,
-        $( $doc:expr, $req_name:ident, $req_type:ty, $res_type:ty ),*
+    (   @inner
+        ($($ameta:meta)*) ($($avis:tt)*) $aname:ident $aerr:ty [$(
+            ($($rmeta:meta)*) $rname:ident $rnamec:ident $rret:ty [$(
+                $pname:ident $pty:ty
+            )*]
+        )*]
     ) => {
         $crate::dependencies::paste::item! {
+            $crate::ghost_chan! { @inner
+                ($($ameta)*) (/* not pub */) $aname $aerr [
+                    $(
+                        ($($rmeta)*) $rname $rnamec [< $aname Future >] <$rret> [$(
+                            $pname $pty
+                        )*]
+                    )*
+
+                    (doc = "internal 'custom' request type")
+                    ghost_actor_custom GhostActorCustom ()
+                    [ input Box<dyn ::std::any::Any + 'static + Send> ]
+
+                    (doc = "internal 'internal' request type")
+                    ghost_actor_internal GhostActorInternal ()
+                    [ input Box<dyn ::std::any::Any + 'static + Send> ]
+
+                    (doc = "internal 'shutdown' request type")
+                    ghost_actor_shutdown GhostActorShutdown ()
+                    [ ]
+                ]
+            }
             $crate::ghost_actor! { @inner_types
-                $tdoc, ($($vis)*), $name, $error, $( $doc, $req_name, [< $req_name:snake >], $req_type, $res_type ),*
+                ($($ameta)*) ($($avis)*) $aname $aerr [$(
+                    ($($rmeta)*) $rname $rnamec $rret [$(
+                        $pname $pty
+                    )*]
+                )*]
             }
-            $crate::ghost_actor! { @inner2
-                $tdoc, ($($vis)*), $name, $error, $( $doc, $req_name, [< $req_name:snake >], $req_type, $res_type, [< $name Future >] <$res_type> ),*
+            $crate::ghost_actor! { @inner_handler
+                ($($ameta)*) ($($avis)*) $aname $aerr [$(
+                    ($($rmeta)*) $rname $rnamec $rret [$(
+                        $pname $pty
+                    )*]
+                )*]
+            }
+            $crate::ghost_actor! { @inner_sender
+                ($($ameta)*) ($($avis)*) $aname $aerr [$(
+                    ($($rmeta)*) $rname $rnamec $rret [$(
+                        $pname $pty
+                    )*]
+                )*]
+            }
+            $crate::ghost_actor! { @inner_internal_sender
+                ($($ameta)*) ($($avis)*) $aname $aerr [$(
+                    ($($rmeta)*) $rname $rnamec $rret [$(
+                        $pname $pty
+                    )*]
+                )*]
             }
         }
     };
 
-    // -- "inner2" has some slight type alterations -- //
+    // -- some helper type aliases -- //
 
-    ( @inner2
-        $tdoc:expr, ($($vis:tt)*), $name:ident, $error:ty,
-        $( $doc:expr, $req_name:ident, $req_fname:ident, $req_type:ty, $res_type:ty, $res_type2:ty ),*
-    ) => {
-        $crate::ghost_chan! { @inner
-            "internal private channel", (/* not pub */), $name, $error, $( $doc, $req_name, $req_type, $res_type2 ),*,
-            "custom", GhostActorCustom, Box<dyn ::std::any::Any + 'static + Send>, (),
-            "internal", GhostActorInternal, Box<dyn ::std::any::Any + 'static + Send>, (),
-            "shutdown", GhostActorShutdown, (), ()
-        }
-        $crate::ghost_actor! { @inner_handler
-            $tdoc, ($($vis)*), $name, $error, $( $doc, $req_name, $req_fname, $req_type, $res_type, $res_type2 ),*
-        }
-        $crate::ghost_actor! { @inner_sender
-            $tdoc, ($($vis)*), $name, $error, $( $doc, $req_name, $req_fname, $req_type, $res_type, $res_type2 ),*
-        }
-        $crate::ghost_actor! { @inner_internal_sender
-            $tdoc, ($($vis)*), $name, $error, $( $doc, $req_name, $req_fname, $req_type, $res_type, $res_type2 ),*
-        }
-    };
-
-    // -- "types" arm writes our helper typedefs -- //
-
-    ( @inner_types
-        $tdoc:expr, ($($vis:tt)*), $name:ident, $error:ty,
-        $( $doc:expr, $req_name:ident, $req_fname:ident, $req_type:ty, $res_type:ty ),*
+    (   @inner_types
+        ($($ameta:meta)*) ($($avis:tt)*) $aname:ident $aerr:ty [$(
+            ($($rmeta:meta)*) $rname:ident $rnamec:ident $rret:ty [$(
+                $pname:ident $pty:ty
+            )*]
+        )*]
     ) => {
         $crate::dependencies::paste::item! {
-            /// Result Type.
-            $($vis)* type [< $name Result >] <T> = ::std::result::Result<T, $error>;
+            /// Result Type
+            $($avis)* type [< $aname Result >] <T> = ::std::result::Result<T, $aerr>;
 
             /// Future Type.
-            $($vis)* type [< $name Future >] <T> = $crate::dependencies::must_future::MustBoxFuture<'static, [< $name Result >] <T> >;
+            $($avis)* type [< $aname Future >] <T> = $crate::dependencies::must_future::MustBoxFuture<'static, [< $aname Result >] <T> >;
 
             /// Handler Result Type.
-            $($vis)* type [< $name HandlerResult >] <T> = ::std::result::Result<[< $name Future >] <T>, $error>;
+            $($avis)* type [< $aname HandlerResult >] <T> = ::std::result::Result<[< $aname Future >] <T>, $aerr>;
         }
     };
 
-    // -- helpers for writing the handler trait functions -- //
+    // -- write the handler trait for implementing actors of this type -- //
 
-    ( @inner_helper_handler $name:ident, $doc:expr, $req_fname:ident, (), $res_type:ty ) => {
-        $crate::dependencies::paste::item! {
-            #[doc = $doc]
-            fn [< handle_ $req_fname >] (
-                &mut self
-            ) -> [< $name HandlerResult >] <$res_type>;
-        }
-    };
-
-    ( @inner_helper_handler $name:ident, $doc:expr, $req_fname:ident, $req_type:ty, $res_type:ty ) => {
-        $crate::dependencies::paste::item! {
-            #[doc = $doc]
-            fn [< handle_ $req_fname >] (
-                &mut self, input: $req_type,
-            ) -> [< $name HandlerResult >] <$res_type>;
-        }
-    };
-
-    // -- "handler" arm writes our handler trait -- //
-
-    ( @inner_handler
-        $tdoc:expr, ($($vis:tt)*), $name:ident, $error:ty,
-        $( $doc:expr, $req_name:ident, $req_fname:ident, $req_type:ty, $res_type:ty, $res_type2:ty ),*
+    (   @inner_handler
+        ($($ameta:meta)*) ($($avis:tt)*) $aname:ident $aerr:ty [$(
+            ($($rmeta:meta)*) $rname:ident $rnamec:ident $rret:ty [$(
+                $pname:ident $pty:ty
+            )*]
+        )*]
     ) => {
         $crate::dependencies::paste::item! {
-            #[doc = $tdoc]
-            $($vis)* trait [< $name Handler >] <
+            $(#[$ameta])*
+            $($avis)* trait [< $aname Handler >] <
                 C: 'static + Send,
                 I: 'static + Send,
             > : 'static + Send {
                 // -- api handlers -- //
 
                 $(
-                    $crate::ghost_actor! { @inner_helper_handler
-                        $name, $doc, $req_fname, $req_type, $res_type
-                    }
+                    $(#[$rmeta])*
+                    fn [< handle_ $rname >] (
+                        &mut self, $($pname: $pty,)*
+                    ) -> [< $aname HandlerResult >]<$rret>;
                 )*
 
                 // -- provided -- //
@@ -121,7 +140,7 @@ macro_rules! ghost_actor {
                 #[doc = "Handle custom messages specific to this exact actor implementation. The provided implementation panics with unimplemented!"]
                 fn handle_ghost_actor_custom(
                     &mut self, input: C,
-                ) -> [< $name Result >] <()> {
+                ) -> [< $aname Result >] <()> {
                     unimplemented!()
                 }
 
@@ -129,77 +148,36 @@ macro_rules! ghost_actor {
                 #[doc = "Handle internal messages specific to this exact actor implementation. The provided implementation panics with unimplemented!"]
                 fn handle_ghost_actor_internal(
                     &mut self, input: I,
-                ) -> [< $name Result >] <()> {
+                ) -> [< $aname Result >] <()> {
                     unimplemented!()
                 }
             }
         }
     };
 
-    // -- helpers for invoking the handler trait functions -- //
+    // -- write the sender that will be used to access actors of this type -- //
 
-    ( @inner_helper_invoke_handler $handler:ident, $hname:ident, $item:ident, () ) => {
-            let $crate::ghost_chan::GhostChanItem {
-                respond, span, .. } = $item;
-            let _g = span.enter();
-            let result = $handler.$hname();
-            let _ = respond(result);
-    };
-
-    ( @inner_helper_invoke_handler $handler:ident, $hname:ident, $item:ident, $req_type:ty ) => {
-            let $crate::ghost_chan::GhostChanItem {
-                input, respond, span } = $item;
-            let _g = span.enter();
-            let result = $handler.$hname(input);
-            let _ = respond(result);
-    };
-
-    // -- helpers for writing sender functions -- //
-
-    ( @inner_helper_sender
-        $sender:ident, $doc:expr, $req_fname:ident, (), $res_type:ty
-    ) => {
-        #[doc = $doc]
-        pub async fn $req_fname (
-            &mut self,
-        ) -> $res_type {
-            use $sender;
-
-            self.sender. $req_fname () .await?.await
-        }
-    };
-
-    ( @inner_helper_sender
-        $sender:ident, $doc:expr, $req_fname:ident, $req_type:ty, $res_type:ty
-    ) => {
-        #[doc = $doc]
-        pub async fn $req_fname (
-            &mut self, input: $req_type,
-        ) -> $res_type {
-            use $sender;
-
-            self.sender. $req_fname (input) .await?.await
-        }
-    };
-
-    // -- "sender" arm writes our sender struct -- //
-
-    ( @inner_sender
-        $tdoc:expr, ($($vis:tt)*), $name:ident, $error:ty,
-        $( $doc:expr, $req_name:ident, $req_fname:ident, $req_type:ty, $res_type:ty, $res_type2:ty ),*
+    (   @inner_sender
+        ($($ameta:meta)*) ($($avis:tt)*) $aname:ident $aerr:ty [$(
+            ($($rmeta:meta)*) $rname:ident $rnamec:ident $rret:ty [$(
+                $pname:ident $pty:ty
+            )*]
+        )*]
     ) => {
         $crate::dependencies::paste::item! {
+            // this is a helper struct
+
             #[doc = "ghost_actor_custom and ghost_actor_internal use this type to expose senders."]
-            $($vis)* struct [< $name Helper >] <'lt, C>
+            $($avis)* struct [< $aname Helper >] <'lt, C>
             where
                 C: 'static + Send,
             {
-                sender: &'lt mut $crate::dependencies::futures::channel::mpsc::Sender<$name>,
+                sender: &'lt mut $crate::dependencies::futures::channel::mpsc::Sender<$aname>,
                 is_internal: bool,
                 phantom: ::std::marker::PhantomData<C>,
             }
 
-            impl<C> $crate::ghost_chan::GhostChanSend<C> for [< $name Helper >] <'_, C>
+            impl<C> $crate::ghost_chan::GhostChanSend<C> for [< $aname Helper >] <'_, C>
             where
                 C: 'static + Send,
             {
@@ -209,9 +187,9 @@ macro_rules! ghost_actor {
                     let input: Box<dyn ::std::any::Any + Send> = Box::new(item);
 
                     let send_fut = if self.is_internal {
-                        self.sender.ghost_actor_internal(input)
+                        [< $aname Send >]::ghost_actor_internal(self.sender, input)
                     } else {
-                        self.sender.ghost_actor_custom(input)
+                        [< $aname Send >]::ghost_actor_custom(self.sender, input)
                     };
 
                     async move {
@@ -225,29 +203,29 @@ macro_rules! ghost_actor {
                 }
             }
 
-            #[doc = $tdoc]
+            // the actual sender
+
+            $(#[$ameta])*
             #[derive(Clone)]
-            $($vis)* struct [< $name Sender >]
-            {
-                sender: $crate::dependencies::futures::channel::mpsc::Sender<$name>,
+            $($avis)* struct [< $aname Sender >] {
+                sender: $crate::dependencies::futures::channel::mpsc::Sender<$aname>,
             }
 
-            impl [< $name Sender >]
-            {
+            impl [< $aname Sender >] {
                 /// Library users will likely not use this function,
                 /// look to the implementation of your actor for a simpler spawn.
                 /// GhostActor implementors will use this to spawn handler tasks.
                 pub async fn ghost_actor_spawn<C, I, H>(
                     factory: $crate::GhostActorSpawn<
-                        [< $name InternalSender >] <I>,
+                        [< $aname InternalSender >] <I>,
                         H,
-                        $error,
+                        $aerr,
                     >,
-                ) -> [< $name Result >]<(Self, $crate::GhostActorDriver)>
+                ) -> [< $aname Result >]<(Self, $crate::GhostActorDriver)>
                 where
                     C: 'static + Send,
                     I: 'static + Send,
-                    H: [< $name Handler >] <C, I>,
+                    H: [< $aname Handler >] <C, I>,
                 {
                     let (send, mut recv) = $crate::dependencies::futures::channel::mpsc::channel(10);
 
@@ -259,8 +237,8 @@ macro_rules! ghost_actor {
                         ::std::sync::RwLock::new(false)
                     );
 
-                    let internal_sender: [< $name InternalSender >] <I> =
-                        [< $name InternalSender >] {
+                    let internal_sender: [< $aname InternalSender >] <I> =
+                        [< $aname InternalSender >] {
                             sender: Self::clone(&sender),
                             shutdown: shutdown.clone(),
                             phantom_i: ::std::marker::PhantomData,
@@ -275,9 +253,7 @@ macro_rules! ghost_actor {
                     let driver_fut = async move {
                         while let Some(proto) = recv.next().await {
                             match proto {
-                                $name::GhostActorShutdown(item) => {
-                                    let $crate::ghost_chan::GhostChanItem {
-                                        respond, span, .. } = item;
+                                $aname::GhostActorShutdown { span, respond } => {
                                     let _g = span.enter();
                                     *shutdown
                                         .write()
@@ -285,9 +261,7 @@ macro_rules! ghost_actor {
                                         = true;
                                     let _ = respond(Ok(()));
                                 }
-                                $name::GhostActorCustom(item) => {
-                                    let $crate::ghost_chan::GhostChanItem {
-                                        input, respond, span } = item;
+                                $aname::GhostActorCustom { span, respond, input } => {
                                     let _g = span.enter();
                                     match input.downcast::<C>() {
                                         Ok(input) => {
@@ -300,9 +274,7 @@ macro_rules! ghost_actor {
                                         }
                                     }
                                 }
-                                $name::GhostActorInternal(item) => {
-                                    let $crate::ghost_chan::GhostChanItem {
-                                        input, respond, span } = item;
+                                $aname::GhostActorInternal { span, respond, input } => {
                                     let _g = span.enter();
                                     let input = input.downcast::<I>()
                                         // shouldn't happen -
@@ -312,10 +284,12 @@ macro_rules! ghost_actor {
                                     let _ = respond(result);
                                 }
                                 $(
-                                    $name::$req_name(item) => {
-                                        $crate::ghost_actor! { @inner_helper_invoke_handler
-                                            handler, [< handle_ $req_fname >], item, $req_type
-                                        }
+                                    $aname::$rnamec { span, respond, $($pname,)* } => {
+                                        let _g = span.enter();
+                                        let result = handler.[< handle_ $rname >](
+                                            $($pname,)*
+                                        );
+                                        let _ = respond(result);
                                     }
                                 )*
                             };
@@ -333,17 +307,22 @@ macro_rules! ghost_actor {
                 }
 
                 $(
-                    $crate::ghost_actor! { @inner_helper_sender
-                        [< $name Send >], $doc, $req_fname, $req_type, [< $name Result >] <$res_type>
+                    $(#[$rmeta])*
+                    pub async fn $rname (
+                        &mut self, $($pname: $pty,)*
+                    ) -> [< $aname Result >] <$rret> {
+                        [< $aname Send >]::$rname(
+                            &mut self.sender, $($pname,)*
+                        ).await?.await
                     }
                 )*
 
                 /// Send a custom message along to the ghost actor.
-                pub fn ghost_actor_custom<C>(&mut self) -> [< $name Helper >] <'_, C>
+                pub fn ghost_actor_custom<C>(&mut self) -> [< $aname Helper >] <'_, C>
                 where
                     C: 'static + Send
                 {
-                    [< $name Helper >] {
+                    [< $aname Helper >] {
                         sender: &mut self.sender,
                         is_internal: false,
                         phantom: ::std::marker::PhantomData,
@@ -351,34 +330,35 @@ macro_rules! ghost_actor {
                 }
 
                 /// Shutdown the actor.
-                pub async fn ghost_actor_shutdown(&mut self) -> [< $name Result >] <()> {
-                    use [< $name Send >];
-
-                    self.sender.ghost_actor_shutdown().await
+                pub async fn ghost_actor_shutdown(&mut self) -> [< $aname Result >] <()> {
+                    [< $aname Send >]::ghost_actor_shutdown(&mut self.sender).await
                 }
             }
         }
     };
 
-    // -- "internal_sender" arm writes our InternalSender struct -- //
+    // -- write the "internal" sender that will have additional functinality -- //
 
-    ( @inner_internal_sender
-        $tdoc:expr, ($($vis:tt)*), $name:ident, $error:ty,
-        $( $doc:expr, $req_name:ident, $req_fname:ident, $req_type:ty, $res_type:ty, $res_type2:ty ),*
+    (   @inner_internal_sender
+        ($($ameta:meta)*) ($($avis:tt)*) $aname:ident $aerr:ty [$(
+            ($($rmeta:meta)*) $rname:ident $rnamec:ident $rret:ty [$(
+                $pname:ident $pty:ty
+            )*]
+        )*]
     ) => {
         $crate::dependencies::paste::item! {
-            #[doc = $tdoc]
-            $($vis)* struct [< $name InternalSender >] <I>
+            /// InternalSender is used when creating an actor implementation.
+            $($avis)* struct [< $aname InternalSender >] <I>
             where
                 I: 'static + Send,
             {
-                sender: [< $name Sender >],
+                sender: [< $aname Sender >],
                 shutdown: ::std::sync::Arc<::std::sync::RwLock<bool>>,
                 phantom_i: ::std::marker::PhantomData<I>,
             }
 
             // have to manually impl so we don't introduce clone bound on `I`
-            impl<I> ::std::clone::Clone for [< $name InternalSender >] <I>
+            impl<I> ::std::clone::Clone for [< $aname InternalSender >] <I>
             where
                 I: 'static + Send,
             {
@@ -391,18 +371,18 @@ macro_rules! ghost_actor {
                 }
             }
 
-            impl<I> ::std::ops::Deref for [< $name InternalSender >] <I>
+            impl<I> ::std::ops::Deref for [< $aname InternalSender >] <I>
             where
                 I: 'static + Send,
             {
-                type Target = [< $name Sender >];
+                type Target = [< $aname Sender >];
 
                 fn deref(&self) -> &Self::Target {
                     &self.sender
                 }
             }
 
-            impl<I> ::std::ops::DerefMut for [< $name InternalSender >] <I>
+            impl<I> ::std::ops::DerefMut for [< $aname InternalSender >] <I>
             where
                 I: 'static + Send,
             {
@@ -411,13 +391,13 @@ macro_rules! ghost_actor {
                 }
             }
 
-            impl<I> [< $name InternalSender >] <I>
+            impl<I> [< $aname InternalSender >] <I>
             where
                 I: 'static + Send,
             {
                 /// Send an internal message back to our handler.
-                pub fn ghost_actor_internal(&mut self) -> [< $name Helper >] <'_, I> {
-                    [< $name Helper >] {
+                pub fn ghost_actor_internal(&mut self) -> [< $aname Helper >] <'_, I> {
+                    [< $aname Helper >] {
                         sender: &mut self.sender.sender,
                         is_internal: true,
                         phantom: ::std::marker::PhantomData,
@@ -435,6 +415,35 @@ macro_rules! ghost_actor {
                         = true;
                 }
             }
+        }
+    };
+
+    // -- visibility helpers - these are the arms users actually invoke -- //
+
+    // specialized pub visibility
+    (
+        $(#[$ameta:meta])* pub ( $($avis:tt)* ) actor $($rest:tt)*
+    ) => {
+        $crate::ghost_actor! { @inner_tx
+            $(#[$ameta])* (pub($($avis)*)) actor $($rest)*
+        }
+    };
+
+    // generic pub visibility
+    (
+        $(#[$ameta:meta])* pub actor $($rest:tt)*
+    ) => {
+        $crate::ghost_actor! { @inner_tx
+            $(#[$ameta])* (pub) actor $($rest)*
+        }
+    };
+
+    // private visibility
+    (
+        $(#[$ameta:meta])* actor $($rest:tt)*
+    ) => {
+        $crate::ghost_actor! { @inner_tx
+            $(#[$ameta])* () actor $($rest)*
         }
     };
 }
