@@ -4,6 +4,9 @@ macro_rules! ghost_actor {
     // using @inner_ self references so we don't have to export / pollute
     // a bunch of sub macros.
 
+    // -- inner_tx does some translation from our external macro api
+    // -- to a simpler internal api
+
     (   @inner_tx
         $(#[$ameta:meta])*
         ($($avis:tt)*) actor $aname:ident<$aerr:ty> {
@@ -22,6 +25,10 @@ macro_rules! ghost_actor {
             }
         }
     };
+
+    // -- the main entrypoint to our internal api
+    // -- dispatches to sub functions
+
     (   @inner
         ($($ameta:meta)*) ($($avis:tt)*) $aname:ident $aerr:ty [$(
             ($($rmeta:meta)*) $rname:ident $rnamec:ident $rret:ty [$(
@@ -81,6 +88,9 @@ macro_rules! ghost_actor {
             }
         }
     };
+
+    // -- some helper type aliases -- //
+
     (   @inner_types
         ($($ameta:meta)*) ($($avis:tt)*) $aname:ident $aerr:ty [$(
             ($($rmeta:meta)*) $rname:ident $rnamec:ident $rret:ty [$(
@@ -99,6 +109,9 @@ macro_rules! ghost_actor {
             $($avis)* type [< $aname HandlerResult >] <T> = ::std::result::Result<[< $aname Future >] <T>, $aerr>;
         }
     };
+
+    // -- write the handler trait for implementing actors of this type -- //
+
     (   @inner_handler
         ($($ameta:meta)*) ($($avis:tt)*) $aname:ident $aerr:ty [$(
             ($($rmeta:meta)*) $rname:ident $rnamec:ident $rret:ty [$(
@@ -141,6 +154,9 @@ macro_rules! ghost_actor {
             }
         }
     };
+
+    // -- write the sender that will be used to access actors of this type -- //
+
     (   @inner_sender
         ($($ameta:meta)*) ($($avis:tt)*) $aname:ident $aerr:ty [$(
             ($($rmeta:meta)*) $rname:ident $rnamec:ident $rret:ty [$(
@@ -149,6 +165,8 @@ macro_rules! ghost_actor {
         )*]
     ) => {
         $crate::dependencies::paste::item! {
+            // this is a helper struct
+
             #[doc = "ghost_actor_custom and ghost_actor_internal use this type to expose senders."]
             $($avis)* struct [< $aname Helper >] <'lt, C>
             where
@@ -184,6 +202,8 @@ macro_rules! ghost_actor {
                     .into()
                 }
             }
+
+            // the actual sender
 
             $(#[$ameta])*
             #[derive(Clone)]
@@ -316,6 +336,9 @@ macro_rules! ghost_actor {
             }
         }
     };
+
+    // -- write the "internal" sender that will have additional functinality -- //
+
     (   @inner_internal_sender
         ($($ameta:meta)*) ($($avis:tt)*) $aname:ident $aerr:ty [$(
             ($($rmeta:meta)*) $rname:ident $rnamec:ident $rret:ty [$(
@@ -394,6 +417,10 @@ macro_rules! ghost_actor {
             }
         }
     };
+
+    // -- visibility helpers - these are the arms users actually invoke -- //
+
+    // specialized pub visibility
     (
         $(#[$ameta:meta])* pub ( $($avis:tt)* ) actor $($rest:tt)*
     ) => {
@@ -401,6 +428,8 @@ macro_rules! ghost_actor {
             $(#[$ameta])* (pub($($avis)*)) actor $($rest)*
         }
     };
+
+    // generic pub visibility
     (
         $(#[$ameta:meta])* pub actor $($rest:tt)*
     ) => {
@@ -408,6 +437,8 @@ macro_rules! ghost_actor {
             $(#[$ameta])* (pub) actor $($rest)*
         }
     };
+
+    // private visibility
     (
         $(#[$ameta:meta])* actor $($rest:tt)*
     ) => {

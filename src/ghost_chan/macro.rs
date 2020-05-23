@@ -5,6 +5,9 @@ macro_rules! ghost_chan {
     // using @inner_ self references so we don't have to export / pollute
     // a bunch of sub macros.
 
+    // -- inner_tx does some translation from our external macro api
+    // -- to a simpler internal api
+
     (   @inner_tx
         $(#[$ameta:meta])*
         ($($avis:tt)*) chan $aname:ident<$aerr:ty> {
@@ -23,6 +26,10 @@ macro_rules! ghost_chan {
             }
         }
     };
+
+    // -- the main entrypoint to our internal api
+    // -- dispatches to sub functions
+
     (   @inner
         ($($ameta:meta)*) ($($avis:tt)*) $aname:ident $aerr:ty [$(
             ($($rmeta:meta)*) $rname:ident $rnamec:ident $rret:ty [$(
@@ -45,6 +52,9 @@ macro_rules! ghost_chan {
             )*]
         }
     };
+
+    // -- write the enum item -- //
+
     (   @inner_protocol
         ($($ameta:meta)*) ($($avis:tt)*) $aname:ident $aerr:ty [$(
             ($($rmeta:meta)*) $rname:ident $rnamec:ident $rret:ty [$(
@@ -52,6 +62,8 @@ macro_rules! ghost_chan {
             )*]
         )*]
     ) => {
+        // -- the main enum item -- //
+
         $(#[$ameta])*
         $($avis)* enum $aname {
             $(
@@ -73,6 +85,9 @@ macro_rules! ghost_chan {
             )*
         }
 
+        // -- implement debug - note this does not expose the parameters
+        // -- because we don't want to require them to be Debug
+
         impl ::std::fmt::Debug for $aname {
             fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
                 match self {
@@ -90,6 +105,10 @@ macro_rules! ghost_chan {
             }
         }
     };
+
+    // -- write the "ChanSend" trait that exposes user-friendly,
+    // -- ergonomic async request functions
+
     (   @inner_send_trait
         ($($ameta:meta)*) ($($avis:tt)*) $aname:ident $aerr:ty [$(
             ($($rmeta:meta)*) $rname:ident $rnamec:ident $rret:ty [$(
@@ -150,9 +169,15 @@ macro_rules! ghost_chan {
                 )*
             }
 
+            // -- implement this trait for anything that is GhostChanSend
+
             impl<T: $crate::ghost_chan::GhostChanSend<$aname>> [< $aname Send >] for T {}
         }
     };
+
+    // -- visibility helpers - these are the arms users actually invoke -- //
+
+    // specialized pub visibility
     (
         $(#[$ameta:meta])* pub ( $($avis:tt)* ) chan $($rest:tt)*
     ) => {
@@ -160,6 +185,8 @@ macro_rules! ghost_chan {
             $(#[$ameta])* (pub($($avis)*)) chan $($rest)*
         }
     };
+
+    // generic pub visibility
     (
         $(#[$ameta:meta])* pub chan $($rest:tt)*
     ) => {
@@ -167,6 +194,8 @@ macro_rules! ghost_chan {
             $(#[$ameta])* (pub) chan $($rest)*
         }
     };
+
+    // private visibility
     (
         $(#[$ameta:meta])* chan $($rest:tt)*
     ) => {
