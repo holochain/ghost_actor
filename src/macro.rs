@@ -194,7 +194,7 @@ macro_rules! ghost_actor {
 
                     async move {
                         send_fut.await.map_err(|e| {
-                            $crate::GhostError::Other(format!("{:?}", e))
+                            $crate::GhostError::from(format!("{:?}", e))
                         })?;
                         Ok(())
                     }
