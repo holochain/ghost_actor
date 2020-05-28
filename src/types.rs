@@ -35,7 +35,7 @@ impl From<String> for GhostError {
         struct OtherError(String);
         impl std::fmt::Display for OtherError {
             fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                std::fmt::Debug::fmt(self, f)
+                write!(f, "{}", self.0)
             }
         }
 
