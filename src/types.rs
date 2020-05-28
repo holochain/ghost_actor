@@ -2,27 +2,50 @@
 #[derive(Debug, thiserror::Error)]
 pub enum GhostError {
     /// Failed to send on channel.
+    #[error(transparent)]
     SendError(#[from] futures::channel::mpsc::SendError),
 
     /// Error sending response.
+    #[error(transparent)]
     ResponseError(#[from] futures::channel::oneshot::Canceled),
 
     /// Invalid custom type error.
+    #[error("InvalidCustomType")]
     InvalidCustomType,
 
     /// Unspecified GhostActor error.
-    Other(String),
+    #[error(transparent)]
+    Other(Box<dyn std::error::Error + Send + Sync>),
+
+    #[doc(hidden)]
+    #[error("__Nonexhaustive")]
+    __Nonexhaustive,
 }
 
-impl std::fmt::Display for GhostError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{:?}", self)
+impl GhostError {
+    /// Build an "Other" type GhostError.
+    pub fn other(e: impl Into<Box<dyn std::error::Error + Send + Sync>>) -> Self {
+        GhostError::Other(e.into())
+    }
+}
+
+impl From<String> for GhostError {
+    fn from(s: String) -> Self {
+        #[derive(Debug, thiserror::Error)]
+        struct OtherError(String);
+        impl std::fmt::Display for OtherError {
+            fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                std::fmt::Debug::fmt(self, f)
+            }
+        }
+
+        GhostError::other(OtherError(s))
     }
 }
 
 impl From<&str> for GhostError {
     fn from(s: &str) -> Self {
-        GhostError::Other(s.to_string())
+        s.to_string().into()
     }
 }
 
