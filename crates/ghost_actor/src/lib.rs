@@ -19,8 +19,13 @@
 //! # Example
 //!
 //! ```
-//! # use ghost_actor::example::MyError;
 //! # use ghost_actor::dependencies::futures::future::FutureExt;
+//! #[derive(Debug, thiserror::Error)]
+//! pub enum MyError {
+//!     #[error(transparent)]
+//!     GhostError(#[from] ghost_actor::GhostError),
+//! }
+//!
 //! ghost_actor::ghost_actor! {
 //!     // Set the visibility of your actor.
 //!     // Name your actor.
@@ -117,25 +122,24 @@
 //! implemented item type at all, you could, for example:
 //!
 //! ```
-//! # use ghost_actor::example::{MyActorSender, MyActorHandler, MyActorHandlerResult, NotDebug};
+//! # #[derive(Debug, thiserror::Error)]
+//! # pub enum MyError {
+//! #     #[error(transparent)]
+//! #     GhostError(#[from] ghost_actor::GhostError),
+//! # }
+//! # ghost_actor::ghost_actor! {
+//! #     pub actor MyActor<MyError> {
+//! #         fn add_one(
+//! #             input: u32,
+//! #         ) -> u32;
+//! #     }
+//! # }
 //! /// internal private type
 //! struct MyActorImpl;
 //!
 //! impl MyActorHandler<(), ()> for MyActorImpl {
 //!     // ...
-//! #    fn handle_test_message(&mut self, input: String) -> MyActorHandlerResult<String> {
-//! #        unimplemented!();
-//! #    }
 //! #    fn handle_add_one(&mut self, input: u32) -> MyActorHandlerResult<u32> {
-//! #        unimplemented!();
-//! #    }
-//! #    fn handle_req_not_debug(&mut self, input: NotDebug) -> MyActorHandlerResult<()> {
-//! #        unimplemented!();
-//! #    }
-//! #    fn handle_funky_internal(&mut self, input: String) -> MyActorHandlerResult<String> {
-//! #        unimplemented!();
-//! #    }
-//! #    fn handle_funky_stop(&mut self) -> MyActorHandlerResult<()> {
 //! #        unimplemented!();
 //! #    }
 //! }
@@ -157,6 +161,9 @@
 //!
 //!     sender
 //! }
+//! # #[tokio::main(threaded_scheduler)]
+//! # async fn main() {
+//! # }
 //! ```
 //!
 //! # The `ghost_chan!` macro.
@@ -189,4 +196,3 @@ mod r#macro;
 pub use r#macro::*;
 
 mod tests;
-pub use tests::*;
