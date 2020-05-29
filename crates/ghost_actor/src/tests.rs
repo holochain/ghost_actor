@@ -1,45 +1,13 @@
-#[allow(clippy::needless_doctest_main)]
-/// Example usage for unit testing and showing documentation generation.
-///
-/// ```
-/// use ghost_actor::example::MyError;
-/// ghost_actor::ghost_chan! {
-///     /// custom chan
-///     pub chan MyCustomChan<MyError> {
-///         /// will respond with 'echo: input'
-///         fn test_msg(input: String) -> String;
-///     }
-/// }
-///
-/// ghost_actor::ghost_chan! {
-///     /// internal chan
-///     pub chan MyInternalChan<MyError> {
-///         /// will respond with 'echo: input'
-///         fn test_msg(input: String) -> String;
-///     }
-/// }
-///
-/// ghost_actor::ghost_actor! {
-///     /// test actor
-///     pub actor MyActor<MyError> {
-///         /// A test message, sends a String, receives a String.
-///         fn test_message(input: String) -> String;
-///         /// A test function, output adds 1 to input.
-///         fn add_one(input: u32) -> u32;
-///         /// Makes an internal_sender request from outside. In reality, you'd never need a command like this.
-///         fn funky_internal(input: String) -> String;
-///         /// Calls internal ghost_actor_shutdown_immediate() command. In reality, you'd never need a command like this.
-///         fn funky_stop() -> ();
-///     }
-/// }
-/// # pub fn main() {}
-/// ```
-pub mod example {
+#[cfg(test)]
+mod tests {
+    use crate::*;
+    use futures::future::FutureExt;
+
     /// Custom example error type.
     #[derive(Debug, thiserror::Error)]
     pub enum MyError {
         /// custom errors must support `From<GhostError>`
-        GhostError(#[from] crate::GhostError),
+        GhostError(#[from] GhostError),
     }
 
     /// This struct does not implement debug.
@@ -51,7 +19,7 @@ pub mod example {
         }
     }
 
-    crate::ghost_chan! {
+    ghost_chan! {
         /// custom chan
         pub chan MyCustomChan<MyError> {
             /// will respond with 'echo: input'.
@@ -59,7 +27,7 @@ pub mod example {
         }
     }
 
-    crate::ghost_chan! {
+    ghost_chan! {
         /// custom chan
         pub chan MyInternalChan<MyError> {
             /// will respond with 'echo: input'.
@@ -67,7 +35,7 @@ pub mod example {
         }
     }
 
-    crate::ghost_actor! {
+    ghost_actor! {
         /// this is my custom actor doc
         pub actor MyActor<MyError> {
             /// A test message, sends a String, receives a String.
@@ -77,6 +45,7 @@ pub mod example {
             fn add_one(input: u32) -> u32;
 
             /// Ensure we can take params that don't implement Debug.
+            #[allow(dead_code)]
             fn req_not_debug(input: NotDebug) -> ();
 
             /// Makes an internal_sender request from outside. In reality, you'd never need a command like this.
@@ -86,13 +55,6 @@ pub mod example {
             fn funky_stop() -> ();
         }
     }
-}
-
-#[cfg(test)]
-mod tests {
-    use crate::*;
-    use example::*;
-    use futures::future::FutureExt;
 
     /// An example implementation of the example MyActor GhostActor.
     struct MyActorImpl {

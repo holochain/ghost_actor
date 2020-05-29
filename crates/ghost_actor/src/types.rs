@@ -1,5 +1,6 @@
 /// Ghost error type.
 #[derive(Debug, thiserror::Error)]
+#[non_exhaustive]
 pub enum GhostError {
     /// Failed to send on channel.
     #[error(transparent)]
@@ -16,10 +17,6 @@ pub enum GhostError {
     /// Unspecified GhostActor error.
     #[error(transparent)]
     Other(Box<dyn std::error::Error + Send + Sync>),
-
-    #[doc(hidden)]
-    #[error("__Nonexhaustive")]
-    __Nonexhaustive,
 }
 
 impl GhostError {

@@ -31,7 +31,7 @@ mod my_impl {
         pub async fn spawn() -> super::my_mod::MyActorSender {
             let (sender, driver) =
                 super::my_mod::MyActorSender::ghost_actor_spawn(Box::new(|i_s| {
-                    use futures::future::FutureExt;
+                    use ghost_actor::dependencies::futures::future::FutureExt;
                     async move { Ok(MyImpl { i_s }) }.boxed().into()
                 }))
                 .await
@@ -43,13 +43,13 @@ mod my_impl {
 
     impl super::my_mod::MyActorHandler<super::my_mod::MyChan, super::my_mod::MyChan> for MyImpl {
         fn handle_my_fn(&mut self, input: i32) -> super::my_mod::MyActorHandlerResult<i32> {
-            use futures::future::FutureExt;
+            use ghost_actor::dependencies::futures::future::FutureExt;
             Ok(async move { Ok(input + 1) }.boxed().into())
         }
 
         fn handle_my_inner(&mut self, input: i32) -> super::my_mod::MyActorHandlerResult<i32> {
             let mut i_s = self.i_s.clone();
-            use futures::future::FutureExt;
+            use ghost_actor::dependencies::futures::future::FutureExt;
             Ok(async move {
                 use super::my_mod::MyChanSend;
                 i_s.ghost_actor_internal().my_fn(input).await

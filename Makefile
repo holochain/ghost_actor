@@ -14,15 +14,16 @@ all: test
 
 publish: tools
 	git diff --exit-code
-	cargo publish
-	VER="v$$(grep version Cargo.toml | head -1 | cut -d ' ' -f 3 | cut -d \" -f 2)"; git tag -a $$VER -m $$VER
+	cargo publish --manifest-path crates/ghost_actor/Cargo.toml
+	VER="v$$(grep version crates/ghost_actor/Cargo.toml | head -1 | cut -d ' ' -f 3 | cut -d \" -f 2)"; git tag -a $$VER -m $$VER
 	git push --tags
 
 test: tools
 	$(ENV) cargo fmt -- --check
 	$(ENV) cargo clippy
 	$(ENV) RUST_BACKTRACE=1 cargo test
-	$(ENV) cargo readme -o README.md
+	$(ENV) cargo readme -r crates/ghost_actor -o README.md
+	$(ENV) cargo readme -r crates/ghost_actor -o ../../README.md
 	@if [ "${CI}x" != "x" ]; then git diff --exit-code; fi
 
 fmt: tools
