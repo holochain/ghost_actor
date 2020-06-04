@@ -259,17 +259,17 @@ macro_rules! ghost_actor {
                                         .write()
                                         .expect("can acquire shutdown RwLock")
                                         = true;
-                                    let _ = respond(Ok(()));
+                                    respond.respond(Ok(()));
                                 }
                                 $aname::GhostActorCustom { span, respond, input } => {
                                     let _g = span.enter();
                                     match input.downcast::<C>() {
                                         Ok(input) => {
                                             let result = handler.handle_ghost_actor_custom(*input);
-                                            let _ = respond(result);
+                                            respond.respond(result);
                                         }
                                         Err(_) => {
-                                            let _ = respond(Err($crate::GhostError::InvalidCustomType.into()));
+                                            respond.respond(Err($crate::GhostError::InvalidCustomType.into()));
                                             return;
                                         }
                                     }
@@ -281,7 +281,7 @@ macro_rules! ghost_actor {
                                         // we control the incoming types
                                         .expect("bad type sent into internal");
                                     let result = handler.handle_ghost_actor_internal(*input);
-                                    let _ = respond(result);
+                                    respond.respond(result);
                                 }
                                 $(
                                     $aname::$rnamec { span, respond, $($pname,)* } => {
@@ -289,7 +289,7 @@ macro_rules! ghost_actor {
                                         let result = handler.[< handle_ $rname >](
                                             $($pname,)*
                                         );
-                                        let _ = respond(result);
+                                        respond.respond(result);
                                     }
                                 )*
                             };

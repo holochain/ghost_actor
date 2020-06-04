@@ -132,14 +132,7 @@ macro_rules! ghost_chan {
 
                     let t = $aname :: $rnamec {
                         span: $crate::dependencies::tracing::debug_span!(stringify!($rname)),
-                        respond: Box::new(move |res| {
-                            if send.send((res, $crate::dependencies::tracing::debug_span!(
-                                concat!(stringify!($rname), "_respond")
-                            ))).is_err() {
-                                return Err($crate::GhostError::from("send error"));
-                            }
-                            Ok(())
-                        }),
+                        respond: $crate::ghost_chan::GhostChanRespond::new(send, concat!(stringify!($rname), "_respond")),
                         $(
                             $pname,
                         )*
