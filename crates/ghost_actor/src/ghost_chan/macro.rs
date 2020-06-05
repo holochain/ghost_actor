@@ -218,19 +218,15 @@ macro_rules! ghost_chan {
     ) => {
         $crate::dependencies::paste::item! {
             /// Result Type
-            #[allow(dead_code)]
             $($avis)* type [< $aname Result >] <T> = ::std::result::Result<T, $aerr>;
 
             /// Future Type.
-            #[allow(dead_code)]
             $($avis)* type [< $aname Future >] <T> = $crate::dependencies::must_future::MustBoxFuture<'static, [< $aname Result >] <T> >;
 
             /// Handler Result Type.
-            #[allow(dead_code)]
             $($avis)* type [< $aname HandlerResult >] <T> = ::std::result::Result<[< $aname Future >] <T>, $aerr>;
 
             $(#[$ameta])*
-            #[allow(dead_code)]
             $($avis)* trait [< $aname Handler >] {
                 $(
                     $(#[$rmeta])*
