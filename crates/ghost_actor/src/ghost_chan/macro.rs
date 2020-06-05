@@ -98,7 +98,7 @@ macro_rules! ghost_chan {
             impl $aname {
                 /// dispatch this request to a handler
                 #[allow(dead_code)]
-                pub fn dispatch<H: [< $aname ZHandler >]>(self, handler: &mut H) -> $crate::GhostActorDriver {
+                pub fn dispatch<H: [< $aname Handler >]>(self, handler: &mut H) -> $crate::GhostActorDriver {
                     match self {
                         $(
                             $aname::$rnamec { span, respond, $($pname,)* } => {
@@ -219,24 +219,24 @@ macro_rules! ghost_chan {
         $crate::dependencies::paste::item! {
             /// Result Type
             #[allow(dead_code)]
-            $($avis)* type [< $aname ZResult >] <T> = ::std::result::Result<T, $aerr>;
+            $($avis)* type [< $aname Result >] <T> = ::std::result::Result<T, $aerr>;
 
             /// Future Type.
             #[allow(dead_code)]
-            $($avis)* type [< $aname ZFuture >] <T> = $crate::dependencies::must_future::MustBoxFuture<'static, [< $aname ZResult >] <T> >;
+            $($avis)* type [< $aname Future >] <T> = $crate::dependencies::must_future::MustBoxFuture<'static, [< $aname Result >] <T> >;
 
             /// Handler Result Type.
             #[allow(dead_code)]
-            $($avis)* type [< $aname ZHandlerResult >] <T> = ::std::result::Result<[< $aname ZFuture >] <T>, $aerr>;
+            $($avis)* type [< $aname HandlerResult >] <T> = ::std::result::Result<[< $aname Future >] <T>, $aerr>;
 
             $(#[$ameta])*
             #[allow(dead_code)]
-            $($avis)* trait [< $aname ZHandler >] {
+            $($avis)* trait [< $aname Handler >] {
                 $(
                     $(#[$rmeta])*
                     fn [< handle_ $rname >] (
                         &mut self, $($pname: $pty,)*
-                    ) -> [< $aname ZHandlerResult >]<$rret>;
+                    ) -> [< $aname HandlerResult >]<$rret>;
                 )*
             }
         }

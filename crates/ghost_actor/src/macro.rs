@@ -37,27 +37,32 @@ macro_rules! ghost_actor {
         )*]
     ) => {
         $crate::dependencies::paste::item! {
-            $crate::ghost_chan! { @inner
-                ($($ameta)*) (/* not pub */) $aname $aerr [
-                    $(
-                        ($($rmeta)*) $rname $rnamec [< $aname Future >] <$rret> [$(
-                            $pname $pty
-                        )*]
-                    )*
+            mod [< __ghost_actor_ $aname:snake _chan >] {
+                use super::*;
 
-                    (doc = "internal 'custom' request type")
-                    ghost_actor_custom GhostActorCustom ()
-                    [ input Box<dyn ::std::any::Any + 'static + Send> ]
+                $crate::ghost_chan! { @inner
+                    ($($ameta)*) (pub(super)) $aname $aerr [
+                        $(
+                            ($($rmeta)*) $rname $rnamec [< $aname Future >] <$rret> [$(
+                                $pname $pty
+                            )*]
+                        )*
 
-                    (doc = "internal 'internal' request type")
-                    ghost_actor_internal GhostActorInternal ()
-                    [ input Box<dyn ::std::any::Any + 'static + Send> ]
+                        (doc = "internal 'custom' request type")
+                        ghost_actor_custom GhostActorCustom ()
+                        [ input Box<dyn ::std::any::Any + 'static + Send> ]
 
-                    (doc = "internal 'shutdown' request type")
-                    ghost_actor_shutdown GhostActorShutdown ()
-                    [ ]
-                ]
+                        (doc = "internal 'internal' request type")
+                        ghost_actor_internal GhostActorInternal ()
+                        [ input Box<dyn ::std::any::Any + 'static + Send> ]
+
+                        (doc = "internal 'shutdown' request type")
+                        ghost_actor_shutdown GhostActorShutdown ()
+                        [ ]
+                    ]
+                }
             }
+
             $crate::ghost_actor! { @inner_types
                 ($($ameta)*) ($($avis)*) $aname $aerr [$(
                     ($($rmeta)*) $rname $rnamec $rret [$(
@@ -172,7 +177,7 @@ macro_rules! ghost_actor {
             where
                 C: 'static + Send,
             {
-                sender: &'lt mut $crate::dependencies::futures::channel::mpsc::Sender<$aname>,
+                sender: &'lt mut $crate::dependencies::futures::channel::mpsc::Sender<[< __ghost_actor_ $aname:snake _chan >]::$aname>,
                 is_internal: bool,
                 phantom: ::std::marker::PhantomData<C>,
             }
@@ -187,9 +192,9 @@ macro_rules! ghost_actor {
                     let input: Box<dyn ::std::any::Any + Send> = Box::new(item);
 
                     let send_fut = if self.is_internal {
-                        [< $aname Send >]::ghost_actor_internal(self.sender, input)
+                        [< __ghost_actor_ $aname:snake _chan >]::[< $aname Send >]::ghost_actor_internal(self.sender, input)
                     } else {
-                        [< $aname Send >]::ghost_actor_custom(self.sender, input)
+                        [< __ghost_actor_ $aname:snake _chan >]::[< $aname Send >]::ghost_actor_custom(self.sender, input)
                     };
 
                     async move {
@@ -208,7 +213,7 @@ macro_rules! ghost_actor {
             $(#[$ameta])*
             #[derive(Clone)]
             $($avis)* struct [< $aname Sender >] {
-                sender: $crate::dependencies::futures::channel::mpsc::Sender<$aname>,
+                sender: $crate::dependencies::futures::channel::mpsc::Sender<[< __ghost_actor_ $aname:snake _chan >]::$aname>,
             }
 
             impl [< $aname Sender >] {
@@ -253,7 +258,7 @@ macro_rules! ghost_actor {
                     let driver_fut = async move {
                         while let Some(proto) = recv.next().await {
                             match proto {
-                                $aname::GhostActorShutdown { span, respond } => {
+                                [< __ghost_actor_ $aname:snake _chan >]::$aname::GhostActorShutdown { span, respond } => {
                                     let _g = span.enter();
                                     *shutdown
                                         .write()
@@ -261,7 +266,7 @@ macro_rules! ghost_actor {
                                         = true;
                                     respond.respond(Ok(()));
                                 }
-                                $aname::GhostActorCustom { span, respond, input } => {
+                                [< __ghost_actor_ $aname:snake _chan >]::$aname::GhostActorCustom { span, respond, input } => {
                                     let _g = span.enter();
                                     match input.downcast::<C>() {
                                         Ok(input) => {
@@ -274,7 +279,7 @@ macro_rules! ghost_actor {
                                         }
                                     }
                                 }
-                                $aname::GhostActorInternal { span, respond, input } => {
+                                [< __ghost_actor_ $aname:snake _chan >]::$aname::GhostActorInternal { span, respond, input } => {
                                     let _g = span.enter();
                                     let input = input.downcast::<I>()
                                         // shouldn't happen -
@@ -284,7 +289,7 @@ macro_rules! ghost_actor {
                                     respond.respond(result);
                                 }
                                 $(
-                                    $aname::$rnamec { span, respond, $($pname,)* } => {
+                                    [< __ghost_actor_ $aname:snake _chan >]::$aname::$rnamec { span, respond, $($pname,)* } => {
                                         let _g = span.enter();
                                         let result = handler.[< handle_ $rname >](
                                             $($pname,)*
@@ -311,7 +316,7 @@ macro_rules! ghost_actor {
                     pub async fn $rname (
                         &mut self, $($pname: $pty,)*
                     ) -> [< $aname Result >] <$rret> {
-                        [< $aname Send >]::$rname(
+                        [< __ghost_actor_ $aname:snake _chan >]::[< $aname Send >]::$rname(
                             &mut self.sender, $($pname,)*
                         ).await?.await
                     }
@@ -331,7 +336,7 @@ macro_rules! ghost_actor {
 
                 /// Shutdown the actor.
                 pub async fn ghost_actor_shutdown(&mut self) -> [< $aname Result >] <()> {
-                    [< $aname Send >]::ghost_actor_shutdown(&mut self.sender).await
+                    [< __ghost_actor_ $aname:snake _chan >]::[< $aname Send >]::ghost_actor_shutdown(&mut self.sender).await
                 }
             }
         }

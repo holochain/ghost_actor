@@ -61,6 +61,22 @@ mod tests {
         internal_sender: MyActorInternalSender<MyInternalChan>,
     }
 
+    impl MyCustomChanHandler for MyActorImpl {
+        fn handle_test_msg(&mut self, input: String) -> MyCustomChanHandlerResult<String> {
+            Ok(async move { Ok(format!("custom respond to: {}", input)) }
+                .boxed()
+                .into())
+        }
+    }
+
+    impl MyInternalChanHandler for MyActorImpl {
+        fn handle_test_msg(&mut self, input: String) -> MyInternalChanHandlerResult<String> {
+            Ok(async move { Ok(format!("internal respond to: {}", input)) }
+                .boxed()
+                .into())
+        }
+    }
+
     impl MyActorHandler<MyCustomChan, MyInternalChan> for MyActorImpl {
         fn handle_test_message(&mut self, input: String) -> MyActorHandlerResult<String> {
             Ok(async move { Ok(format!("echo: {}", input)) }.boxed().into())
@@ -89,20 +105,12 @@ mod tests {
         }
 
         fn handle_ghost_actor_custom(&mut self, input: MyCustomChan) -> MyActorResult<()> {
-            match input {
-                MyCustomChan::TestMsg { respond, input, .. } => {
-                    respond.respond(Ok(format!("custom respond to: {}", input)));
-                }
-            }
+            tokio::task::spawn(input.dispatch(self));
             Ok(())
         }
 
         fn handle_ghost_actor_internal(&mut self, input: MyInternalChan) -> MyActorResult<()> {
-            match input {
-                MyInternalChan::TestMsg { respond, input, .. } => {
-                    respond.respond(Ok(format!("internal respond to: {}", input)));
-                }
-            }
+            tokio::task::spawn(input.dispatch(self));
             Ok(())
         }
     }

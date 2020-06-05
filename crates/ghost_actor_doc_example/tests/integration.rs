@@ -41,6 +41,13 @@ mod my_impl {
         }
     }
 
+    impl super::my_mod::MyChanHandler for MyImpl {
+        fn handle_my_fn(&mut self, input: i32) -> super::my_mod::MyChanHandlerResult<i32> {
+            use ghost_actor::dependencies::futures::future::FutureExt;
+            Ok(async move { Ok(input + 1) }.boxed().into())
+        }
+    }
+
     impl super::my_mod::MyActorHandler<super::my_mod::MyChan, super::my_mod::MyChan> for MyImpl {
         fn handle_my_fn(&mut self, input: i32) -> super::my_mod::MyActorHandlerResult<i32> {
             use ghost_actor::dependencies::futures::future::FutureExt;
@@ -62,16 +69,7 @@ mod my_impl {
             &mut self,
             input: super::my_mod::MyChan,
         ) -> super::my_mod::MyActorResult<()> {
-            match input {
-                super::my_mod::MyChan::MyFn {
-                    span,
-                    respond,
-                    input,
-                } => {
-                    let _g = span.enter();
-                    respond.respond(Ok(input + 1));
-                }
-            }
+            tokio::task::spawn(input.dispatch(self));
             Ok(())
         }
 
@@ -79,16 +77,7 @@ mod my_impl {
             &mut self,
             input: super::my_mod::MyChan,
         ) -> super::my_mod::MyActorResult<()> {
-            match input {
-                super::my_mod::MyChan::MyFn {
-                    span,
-                    respond,
-                    input,
-                } => {
-                    let _g = span.enter();
-                    respond.respond(Ok(input + 1));
-                }
-            }
+            tokio::task::spawn(input.dispatch(self));
             Ok(())
         }
     }
