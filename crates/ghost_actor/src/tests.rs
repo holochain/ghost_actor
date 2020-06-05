@@ -91,7 +91,7 @@ mod tests {
         fn handle_ghost_actor_custom(&mut self, input: MyCustomChan) -> MyActorResult<()> {
             match input {
                 MyCustomChan::TestMsg { respond, input, .. } => {
-                    respond(Ok(format!("custom respond to: {}", input))).unwrap();
+                    respond.respond(Ok(format!("custom respond to: {}", input)));
                 }
             }
             Ok(())
@@ -100,7 +100,7 @@ mod tests {
         fn handle_ghost_actor_internal(&mut self, input: MyInternalChan) -> MyActorResult<()> {
             match input {
                 MyInternalChan::TestMsg { respond, input, .. } => {
-                    respond(Ok(format!("internal respond to: {}", input))).unwrap();
+                    respond.respond(Ok(format!("internal respond to: {}", input)));
                 }
             }
             Ok(())

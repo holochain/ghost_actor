@@ -69,7 +69,7 @@ mod my_impl {
                     input,
                 } => {
                     let _g = span.enter();
-                    respond(Ok(input + 1))?;
+                    respond.respond(Ok(input + 1));
                 }
             }
             Ok(())
@@ -86,7 +86,7 @@ mod my_impl {
                     input,
                 } => {
                     let _g = span.enter();
-                    respond(Ok(input + 1))?;
+                    respond.respond(Ok(input + 1));
                 }
             }
             Ok(())
