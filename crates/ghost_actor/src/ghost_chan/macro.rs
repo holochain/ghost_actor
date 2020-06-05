@@ -51,6 +51,13 @@ macro_rules! ghost_chan {
                 )*]
             )*]
         }
+        $crate::ghost_chan! { @inner_handler_trait
+            ($($ameta)*) ($($avis)*) $aname $aerr [$(
+                ($($rmeta)*) $rname $rnamec $rret [$(
+                    $pname $pty
+                )*]
+            )*]
+        }
     };
 
     // -- write the enum item -- //
@@ -83,6 +90,38 @@ macro_rules! ghost_chan {
                     )*
                 },
             )*
+        }
+
+        // -- dispatch to handler
+
+        $crate::dependencies::paste::item! {
+            impl $aname {
+                /// dispatch this request to a handler
+                #[allow(dead_code)]
+                pub fn dispatch<H: [< $aname ZHandler >]>(self, handler: &mut H) -> $crate::GhostActorDriver {
+                    match self {
+                        $(
+                            $aname::$rnamec { span, respond, $($pname,)* } => {
+                                let _g = span.enter();
+                                let result = handler.[< handle_ $rname >](
+                                    $($pname,)*
+                                );
+                                use $crate::dependencies::futures::future::FutureExt;
+                                async move {
+                                    let f = match result {
+                                        Err(e) => {
+                                            respond.respond(Err(e));
+                                            return;
+                                        }
+                                        Ok(f) => f,
+                                    };
+                                    respond.respond(f.await);
+                                }.boxed().into()
+                            }
+                        )*
+                    }
+                }
+            }
         }
 
         // -- implement debug - note this does not expose the parameters
@@ -165,6 +204,41 @@ macro_rules! ghost_chan {
             // -- implement this trait for anything that is GhostChanSend
 
             impl<T: $crate::ghost_chan::GhostChanSend<$aname>> [< $aname Send >] for T {}
+        }
+    };
+
+    // -- write the "ChanHandler" trait
+
+    (   @inner_handler_trait
+        ($($ameta:meta)*) ($($avis:tt)*) $aname:ident $aerr:ty [$(
+            ($($rmeta:meta)*) $rname:ident $rnamec:ident $rret:ty [$(
+                $pname:ident $pty:ty
+            )*]
+        )*]
+    ) => {
+        $crate::dependencies::paste::item! {
+            /// Result Type
+            #[allow(dead_code)]
+            $($avis)* type [< $aname ZResult >] <T> = ::std::result::Result<T, $aerr>;
+
+            /// Future Type.
+            #[allow(dead_code)]
+            $($avis)* type [< $aname ZFuture >] <T> = $crate::dependencies::must_future::MustBoxFuture<'static, [< $aname ZResult >] <T> >;
+
+            /// Handler Result Type.
+            #[allow(dead_code)]
+            $($avis)* type [< $aname ZHandlerResult >] <T> = ::std::result::Result<[< $aname ZFuture >] <T>, $aerr>;
+
+            $(#[$ameta])*
+            #[allow(dead_code)]
+            $($avis)* trait [< $aname ZHandler >] {
+                $(
+                    $(#[$rmeta])*
+                    fn [< handle_ $rname >] (
+                        &mut self, $($pname: $pty,)*
+                    ) -> [< $aname ZHandlerResult >]<$rret>;
+                )*
+            }
         }
     };
 
