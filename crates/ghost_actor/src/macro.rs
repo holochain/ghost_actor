@@ -251,12 +251,8 @@ macro_rules! ghost_actor {
 
                     let mut handler = factory(internal_sender).await?;
 
-                    use $crate::dependencies::futures::{
-                        future::FutureExt,
-                        stream::StreamExt,
-                    };
-                    let driver_fut = async move {
-                        while let Some(proto) = recv.next().await {
+                    let driver_fut = $crate::dependencies::futures::future::FutureExt::boxed(async move {
+                        while let Some(proto) = $crate::dependencies::futures::stream::StreamExt::next(&mut recv).await {
                             match proto {
                                 [< __ghost_actor_ $aname:snake _chan >]::$aname::GhostActorShutdown { span, respond } => {
                                     let _g = span.enter();
@@ -303,7 +299,7 @@ macro_rules! ghost_actor {
                                 break;
                             }
                         }
-                    }.boxed().into();
+                    }).into();
 
                     Ok((
                         sender,
