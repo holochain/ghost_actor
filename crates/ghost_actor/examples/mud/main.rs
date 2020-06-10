@@ -21,7 +21,8 @@ async fn main() {
 }
 
 async fn listener_task() {
-    let mut listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let mut listener =
+        tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
     println!("telnet 127.0.0.1 {}", listener.local_addr().unwrap().port());
 
     while let Some(Ok(socket)) = listener.next().await {
@@ -37,8 +38,8 @@ async fn socket_task(socket: tokio::net::TcpStream) {
         match msg {
             ConEvent::UserCommand { respond, cmd, .. } => {
                 respond.respond(Ok(()));
-                println!("yo: {:?}", cmd);
-                csend.write_raw(cmd).await.unwrap();
+                println!("yo: {}", cmd);
+                csend.write_raw(cmd.into_bytes()).await.unwrap();
             }
         }
     }
