@@ -59,6 +59,7 @@ mod tests {
     /// An example implementation of the example MyActor GhostActor.
     struct MyActorImpl {
         internal_sender: MyActorInternalSender<MyInternalChan>,
+        did_shutdown: std::sync::Arc<std::sync::atomic::AtomicBool>,
     }
 
     impl MyCustomChanHandler for MyActorImpl {
@@ -104,6 +105,11 @@ mod tests {
             Ok(async move { Ok(()) }.boxed().into())
         }
 
+        fn handle_ghost_actor_shutdown(&mut self) {
+            self.did_shutdown
+                .store(true, std::sync::atomic::Ordering::SeqCst);
+        }
+
         fn handle_ghost_actor_custom(&mut self, input: MyCustomChan) -> MyActorResult<()> {
             tokio::task::spawn(input.dispatch(self));
             Ok(())
@@ -117,11 +123,16 @@ mod tests {
 
     impl MyActorImpl {
         /// Rather than using ghost_actor_spawn directly, use this simple spawn.
-        pub async fn spawn() -> Result<MyActorSender, MyError> {
+        pub async fn spawn(
+        ) -> Result<(MyActorSender, std::sync::Arc<std::sync::atomic::AtomicBool>), MyError>
+        {
+            let did_shutdown = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+            let did_shutdown_clone = did_shutdown.clone();
             let (sender, driver) = MyActorSender::ghost_actor_spawn(Box::new(|i_s| {
                 async move {
                     Ok(MyActorImpl {
                         internal_sender: i_s,
+                        did_shutdown,
                     })
                 }
                 .boxed()
@@ -129,7 +140,7 @@ mod tests {
             }))
             .await?;
             tokio::task::spawn(driver);
-            Ok(sender)
+            Ok((sender, did_shutdown_clone))
         }
     }
 
@@ -146,7 +157,7 @@ mod tests {
     async fn it_check_echo() {
         init_tracing();
 
-        let mut sender = MyActorImpl::spawn().await.unwrap();
+        let (mut sender, _) = MyActorImpl::spawn().await.unwrap();
 
         assert_eq!(
             "echo: test",
@@ -158,7 +169,7 @@ mod tests {
     async fn it_check_add_1() {
         init_tracing();
 
-        let mut sender = MyActorImpl::spawn().await.unwrap();
+        let (mut sender, _) = MyActorImpl::spawn().await.unwrap();
 
         assert_eq!(43, sender.add_one(42).await.unwrap());
     }
@@ -167,7 +178,7 @@ mod tests {
     async fn it_check_custom() {
         init_tracing();
 
-        let mut sender = MyActorImpl::spawn().await.unwrap();
+        let (mut sender, _) = MyActorImpl::spawn().await.unwrap();
 
         assert_eq!(
             "custom respond to: c_test",
@@ -183,7 +194,7 @@ mod tests {
     async fn it_check_internal() {
         init_tracing();
 
-        let mut sender = MyActorImpl::spawn().await.unwrap();
+        let (mut sender, _) = MyActorImpl::spawn().await.unwrap();
 
         assert_eq!(
             "internal respond to: i_test",
@@ -195,7 +206,7 @@ mod tests {
     async fn it_check_shutdown() {
         init_tracing();
 
-        let mut sender = MyActorImpl::spawn().await.unwrap();
+        let (mut sender, did_shutdown) = MyActorImpl::spawn().await.unwrap();
 
         sender.ghost_actor_shutdown().await.unwrap();
 
@@ -205,13 +216,15 @@ mod tests {
         {
             panic!("expected send error");
         }
+
+        assert!(did_shutdown.load(std::sync::atomic::Ordering::SeqCst));
     }
 
     #[tokio::test]
     async fn it_check_internal_shutdown() {
         init_tracing();
 
-        let mut sender = MyActorImpl::spawn().await.unwrap();
+        let (mut sender, did_shutdown) = MyActorImpl::spawn().await.unwrap();
 
         sender.funky_stop().await.unwrap();
 
@@ -221,5 +234,7 @@ mod tests {
         {
             panic!("expected send error");
         }
+
+        assert!(did_shutdown.load(std::sync::atomic::Ordering::SeqCst));
     }
 }
