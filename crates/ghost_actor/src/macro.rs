@@ -141,6 +141,10 @@ macro_rules! ghost_actor {
 
                 // -- provided -- //
 
+                #[doc = "Gives actors a chance to handle any cleanup tasks before the actor is shut down. This provided function is a no-op."]
+                fn handle_ghost_actor_shutdown(&mut self) {
+                }
+
                 #[allow(unused_variables)]
                 #[doc = "Handle custom messages specific to this exact actor implementation. The provided implementation panics with unimplemented!"]
                 fn handle_ghost_actor_custom(
@@ -303,6 +307,7 @@ macro_rules! ghost_actor {
                                 break;
                             }
                         }
+                        handler.handle_ghost_actor_shutdown();
                     }.boxed().into();
 
                     Ok((
