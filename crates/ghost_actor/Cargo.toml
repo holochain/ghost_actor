@@ -16,7 +16,7 @@ futures = "0.3"
 paste = "0.1.12"
 thiserror = "1"
 tracing = "0.1"
-must_future = "0.1.1"
+must_future = "0.1.2"
 
 [dev-dependencies]
 tokio = { version = "0.2", features = ["full"] }

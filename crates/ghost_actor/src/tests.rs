@@ -1,7 +1,7 @@
 #[cfg(test)]
 mod tests {
     use crate::*;
-    use futures::future::FutureExt;
+    use must_future::*;
 
     /// Custom example error type.
     #[derive(Debug, thiserror::Error)]
@@ -68,8 +68,7 @@ mod tests {
             input: String,
         ) -> MyCustomChanHandlerResult<String> {
             Ok(async move { Ok(format!("custom respond to: {}", input)) }
-                .boxed()
-                .into())
+                .must_box())
         }
     }
 
@@ -79,8 +78,7 @@ mod tests {
             input: String,
         ) -> MyInternalChanHandlerResult<String> {
             Ok(async move { Ok(format!("internal respond to: {}", input)) }
-                .boxed()
-                .into())
+                .must_box())
         }
     }
 
@@ -89,18 +87,18 @@ mod tests {
             &mut self,
             input: String,
         ) -> MyActorHandlerResult<String> {
-            Ok(async move { Ok(format!("echo: {}", input)) }.boxed().into())
+            Ok(async move { Ok(format!("echo: {}", input)) }.must_box())
         }
 
         fn handle_add_one(&mut self, input: u32) -> MyActorHandlerResult<u32> {
-            Ok(async move { Ok(input + 1) }.boxed().into())
+            Ok(async move { Ok(input + 1) }.must_box())
         }
 
         fn handle_req_not_debug(
             &mut self,
             _input: NotDebug,
         ) -> MyActorHandlerResult<()> {
-            Ok(async move { Ok(()) }.boxed().into())
+            Ok(async move { Ok(()) }.must_box())
         }
 
         fn handle_funky_internal(
@@ -111,13 +109,12 @@ mod tests {
             Ok(async move {
                 Ok(i_s.ghost_actor_internal().test_msg(input).await.unwrap())
             }
-            .boxed()
-            .into())
+            .must_box())
         }
 
         fn handle_funky_stop(&mut self) -> MyActorHandlerResult<()> {
             self.internal_sender.ghost_actor_shutdown_immediate();
-            Ok(async move { Ok(()) }.boxed().into())
+            Ok(async move { Ok(()) }.must_box())
         }
 
         fn handle_ghost_actor_shutdown(&mut self) {
@@ -151,18 +148,16 @@ mod tests {
             let did_shutdown =
                 std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
             let did_shutdown_clone = did_shutdown.clone();
-            let (sender, driver) =
-                MyActorSender::ghost_actor_spawn(Box::new(|i_s| {
-                    async move {
-                        Ok(MyActorImpl {
-                            internal_sender: i_s,
-                            did_shutdown,
-                        })
-                    }
-                    .boxed()
-                    .into()
-                }))
-                .await?;
+            let (sender, driver) = MyActorSender::ghost_actor_spawn(|i_s| {
+                async move {
+                    Ok(MyActorImpl {
+                        internal_sender: i_s,
+                        did_shutdown,
+                    })
+                }
+                .must_box()
+            })
+            .await?;
             tokio::task::spawn(driver);
             Ok((sender, did_shutdown_clone))
         }

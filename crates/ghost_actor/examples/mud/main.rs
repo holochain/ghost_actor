@@ -1,9 +1,8 @@
+use ghost_actor::dependencies::must_future::*;
 use tokio::{
     io::{AsyncReadExt, AsyncWriteExt},
     stream::StreamExt,
 };
-
-use futures::future::FutureExt;
 
 mod error;
 use error::*;

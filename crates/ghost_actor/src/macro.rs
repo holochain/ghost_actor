@@ -191,8 +191,6 @@ macro_rules! ghost_actor {
                 C: 'static + Send,
             {
                 fn ghost_chan_send(&mut self, item: C) -> $crate::dependencies::must_future::MustBoxFuture<'_, $crate::GhostResult<()>> {
-                    use $crate::dependencies::futures::future::FutureExt;
-
                     let input: Box<dyn ::std::any::Any + Send> = Box::new(item);
 
                     let send_fut = if self.is_internal {
@@ -201,14 +199,12 @@ macro_rules! ghost_actor {
                         [< __ghost_actor_ $aname:snake _chan >]::[< $aname Send >]::ghost_actor_custom(self.sender, input)
                     };
 
-                    async move {
+                    $crate::dependencies::must_future::MustBoxFuture::new(async move {
                         send_fut.await.map_err(|e| {
                             $crate::GhostError::from(format!("{:?}", e))
                         })?;
                         Ok(())
-                    }
-                    .boxed()
-                    .into()
+                    })
                 }
             }
 
@@ -224,17 +220,14 @@ macro_rules! ghost_actor {
                 /// Library users will likely not use this function,
                 /// look to the implementation of your actor for a simpler spawn.
                 /// GhostActor implementors will use this to spawn handler tasks.
-                pub async fn ghost_actor_spawn<C, I, H>(
-                    factory: $crate::GhostActorSpawn<
-                        [< $aname InternalSender >] <I>,
-                        H,
-                        $aerr,
-                    >,
+                pub async fn ghost_actor_spawn<'a, C, I, H, F>(
+                    factory: F,
                 ) -> [< $aname Result >]<(Self, $crate::GhostActorDriver)>
                 where
                     C: 'static + Send,
                     I: 'static + Send,
                     H: [< $aname Handler >] <C, I>,
+                    F: 'a + FnOnce([< $aname InternalSender >]<I>) -> $crate::dependencies::must_future::MustBoxFuture<'static, ::std::result::Result<H, $aerr>> + Send,
                 {
                     let (send, mut recv) = $crate::dependencies::futures::channel::mpsc::channel(10);
 
@@ -255,7 +248,7 @@ macro_rules! ghost_actor {
 
                     let mut handler = factory(internal_sender).await?;
 
-                    let driver_fut = $crate::dependencies::futures::future::FutureExt::boxed(async move {
+                    let driver_fut = $crate::dependencies::must_future::MustBoxFuture::new(async move {
                         while let Some(proto) = $crate::dependencies::futures::stream::StreamExt::next(&mut recv).await {
                             match proto {
                                 [< __ghost_actor_ $aname:snake _chan >]::$aname::GhostActorShutdown { span, respond } => {
@@ -304,7 +297,7 @@ macro_rules! ghost_actor {
                             }
                         }
                         handler.handle_ghost_actor_shutdown();
-                    }).into();
+                    });
 
                     Ok((
                         sender,

@@ -58,15 +58,3 @@ pub type GhostResult<T> = Result<T, GhostError>;
 /// This future represents a spawned GhostActor task, you must await
 /// or spawn this task into an executor for the actor to function.
 pub type GhostActorDriver = ::must_future::MustBoxFuture<'static, ()>;
-
-/// This is the factory callback signature for spawning new actor tasks.
-pub type GhostActorSpawn<I, H, E> = Box<
-    dyn FnOnce(
-            I,
-        ) -> ::must_future::MustBoxFuture<
-            'static,
-            std::result::Result<H, E>,
-        >
-        + 'static
-        + Send,
->;

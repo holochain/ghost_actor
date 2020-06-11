@@ -30,73 +30,72 @@ pub async fn spawn_con(
     write_half.write_all(&[0xff, 0xfb, 0x03]).await.unwrap();
 
     // spawn the actor impl
-    let (sender, driver) =
-        ConSender::ghost_actor_spawn(Box::new(move |mut i_s| {
-            // spawn the write task
-            let write_sender = spawn_write_task(write_half);
+    let (sender, driver) = ConSender::ghost_actor_spawn(move |mut i_s| {
+        // spawn the write task
+        let write_sender = spawn_write_task(write_half);
 
-            let mut write_sender_clone = write_sender.clone();
+        let mut write_sender_clone = write_sender.clone();
 
-            // spawn the read task
-            tokio::task::spawn(async move {
-                let mut cmd = Vec::with_capacity(20);
-                let mut wait_command = 0;
-                while let Ok(c) = read_half.read_u8().await {
-                    println!("char: {}", c);
-                    if wait_command > 0 {
-                        // mid IAC command - ignore the rest
-                        wait_command -= 1;
-                        continue;
+        // spawn the read task
+        tokio::task::spawn(async move {
+            let mut cmd = Vec::with_capacity(20);
+            let mut wait_command = 0;
+            while let Ok(c) = read_half.read_u8().await {
+                println!("char: {}", c);
+                if wait_command > 0 {
+                    // mid IAC command - ignore the rest
+                    wait_command -= 1;
+                    continue;
+                }
+                match c {
+                    255 => {
+                        // IAC command - ignore the rest
+                        wait_command = 2;
                     }
-                    match c {
-                        255 => {
-                            // IAC command - ignore the rest
-                            wait_command = 2;
+                    27 | 3 | 4 => {
+                        i_s.ghost_actor_shutdown_immediate();
+                        return;
+                    }
+                    8 | 127 => {
+                        cmd.pop();
+                        write_sender_clone
+                            .set_buffer(cmd.clone())
+                            .await
+                            .unwrap();
+                    }
+                    10 | 13 => {
+                        write_sender_clone
+                            .set_buffer(Vec::with_capacity(0))
+                            .await
+                            .unwrap();
+                        if let Ok(s) = std::str::from_utf8(&cmd) {
+                            let s = s.trim();
+                            if s.len() > 0 {
+                                rsend
+                                    .user_command(s.to_string())
+                                    .await
+                                    .unwrap();
+                            }
                         }
-                        27 | 3 | 4 => {
-                            i_s.ghost_actor_shutdown_immediate();
-                            return;
-                        }
-                        8 | 127 => {
-                            cmd.pop();
+                        cmd.clear();
+                    }
+                    _ => {
+                        if cmd.len() < 20 && c >= 0x20 && c <= 0x7e {
+                            cmd.push(c);
                             write_sender_clone
                                 .set_buffer(cmd.clone())
                                 .await
                                 .unwrap();
                         }
-                        10 | 13 => {
-                            write_sender_clone
-                                .set_buffer(Vec::with_capacity(0))
-                                .await
-                                .unwrap();
-                            if let Ok(s) = std::str::from_utf8(&cmd) {
-                                let s = s.trim();
-                                if s.len() > 0 {
-                                    rsend
-                                        .user_command(s.to_string())
-                                        .await
-                                        .unwrap();
-                                }
-                            }
-                            cmd.clear();
-                        }
-                        _ => {
-                            if cmd.len() < 20 && c >= 0x20 && c <= 0x7e {
-                                cmd.push(c);
-                                write_sender_clone
-                                    .set_buffer(cmd.clone())
-                                    .await
-                                    .unwrap();
-                            }
-                        }
                     }
                 }
-            });
+            }
+        });
 
-            async move { Ok(ConImpl { write_sender }) }.boxed().into()
-        }))
-        .await
-        .unwrap();
+        async move { Ok(ConImpl { write_sender }) }.must_box()
+    })
+    .await
+    .unwrap();
 
     tokio::task::spawn(driver);
 
@@ -172,7 +171,6 @@ impl ConHandler<(), ()> for ConImpl {
             write_sender.write_line(msg).await?;
             Ok(())
         }
-        .boxed()
-        .into())
+        .must_box())
     }
 }

@@ -21,6 +21,8 @@ or if you explicitly call `ghost_actor_shutdown()`, the driver task
 ## Example
 
 ```rust
+use must_future::*;
+
 #[derive(Debug, thiserror::Error)]
 pub enum MyError {
     #[error(transparent)]
@@ -60,7 +62,7 @@ impl MyActorHandler<(), ()> for MyActorImpl {
     ) -> MyActorHandlerResult<u32> {
         Ok(async move {
             Ok(input + 1)
-        }.boxed().into())
+        }.must_box())
     }
 }
 
@@ -69,11 +71,11 @@ impl MyActorImpl {
     pub async fn spawn() -> MyActorSender {
         use futures::future::FutureExt;
 
-        let (sender, driver) = MyActorSender::ghost_actor_spawn(Box::new(|_internal_sender| {
+        let (sender, driver) = MyActorSender::ghost_actor_spawn(|_internal_sender| {
             async move {
                 Ok(MyActorImpl)
-            }.boxed().into()
-        })).await.unwrap();
+            }.must_box()
+        }).await.unwrap();
 
         tokio::task::spawn(driver);
 
@@ -123,6 +125,8 @@ See the example above, however, there may be no need to expose the
 implemented item type at all, you could, for example:
 
 ```rust
+use must_future::*;
+
 /// internal private type
 struct MyActorImpl;
 
@@ -137,11 +141,11 @@ impl MyActorHandler<(), ()> for MyActorImpl {
 pub async fn spawn_my_actor() -> MyActorSender {
     use futures::future::FutureExt;
 
-    let (sender, driver) = MyActorSender::ghost_actor_spawn(Box::new(|_internal_sender| {
+    let (sender, driver) = MyActorSender::ghost_actor_spawn(|_internal_sender| {
         async move {
             Ok(MyActorImpl)
-        }.boxed().into()
-    })).await.unwrap();
+        }.must_box()
+    }).await.unwrap();
 
     tokio::task::spawn(driver);
 

@@ -30,10 +30,10 @@ mod my_impl {
     impl MyImpl {
         pub async fn spawn() -> super::my_mod::MyActorSender {
             let (sender, driver) =
-                super::my_mod::MyActorSender::ghost_actor_spawn(Box::new(|i_s| {
+                super::my_mod::MyActorSender::ghost_actor_spawn(|i_s| {
                     use ghost_actor::dependencies::futures::future::FutureExt;
                     async move { Ok(MyImpl { i_s }) }.boxed().into()
-                }))
+                })
                 .await
                 .unwrap();
             tokio::task::spawn(driver);
@@ -46,8 +46,9 @@ mod my_impl {
             &mut self,
             input: i32,
         ) -> super::my_mod::MyChanHandlerResult<i32> {
-            use ghost_actor::dependencies::futures::future::FutureExt;
-            Ok(async move { Ok(input + 1) }.boxed().into())
+            Ok(ghost_actor::dependencies::must_future::MustBoxFuture::new(
+                async move { Ok(input + 1) },
+            ))
         }
     }
 
@@ -61,8 +62,9 @@ mod my_impl {
             &mut self,
             input: i32,
         ) -> super::my_mod::MyActorHandlerResult<i32> {
-            use ghost_actor::dependencies::futures::future::FutureExt;
-            Ok(async move { Ok(input + 1) }.boxed().into())
+            Ok(ghost_actor::dependencies::must_future::MustBoxFuture::new(
+                async move { Ok(input + 1) },
+            ))
         }
 
         fn handle_my_inner(
@@ -70,13 +72,12 @@ mod my_impl {
             input: i32,
         ) -> super::my_mod::MyActorHandlerResult<i32> {
             let mut i_s = self.i_s.clone();
-            use ghost_actor::dependencies::futures::future::FutureExt;
-            Ok(async move {
-                use super::my_mod::MyChanSend;
-                i_s.ghost_actor_internal().my_fn(input).await
-            }
-            .boxed()
-            .into())
+            Ok(ghost_actor::dependencies::must_future::MustBoxFuture::new(
+                async move {
+                    use super::my_mod::MyChanSend;
+                    i_s.ghost_actor_internal().my_fn(input).await
+                },
+            ))
         }
 
         fn handle_ghost_actor_internal(
