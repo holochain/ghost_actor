@@ -1,7 +1,7 @@
 #[cfg(test)]
 mod tests {
     use crate::*;
-    use futures::future::FutureExt;
+    use must_future::*;
 
     /// Custom example error type.
     #[derive(Debug, thiserror::Error)]
@@ -63,46 +63,58 @@ mod tests {
     }
 
     impl MyCustomChanHandler for MyActorImpl {
-        fn handle_test_msg(&mut self, input: String) -> MyCustomChanHandlerResult<String> {
+        fn handle_test_msg(
+            &mut self,
+            input: String,
+        ) -> MyCustomChanHandlerResult<String> {
             Ok(async move { Ok(format!("custom respond to: {}", input)) }
-                .boxed()
-                .into())
+                .must_box())
         }
     }
 
     impl MyInternalChanHandler for MyActorImpl {
-        fn handle_test_msg(&mut self, input: String) -> MyInternalChanHandlerResult<String> {
+        fn handle_test_msg(
+            &mut self,
+            input: String,
+        ) -> MyInternalChanHandlerResult<String> {
             Ok(async move { Ok(format!("internal respond to: {}", input)) }
-                .boxed()
-                .into())
+                .must_box())
         }
     }
 
     impl MyActorHandler<MyCustomChan, MyInternalChan> for MyActorImpl {
-        fn handle_test_message(&mut self, input: String) -> MyActorHandlerResult<String> {
-            Ok(async move { Ok(format!("echo: {}", input)) }.boxed().into())
+        fn handle_test_message(
+            &mut self,
+            input: String,
+        ) -> MyActorHandlerResult<String> {
+            Ok(async move { Ok(format!("echo: {}", input)) }.must_box())
         }
 
         fn handle_add_one(&mut self, input: u32) -> MyActorHandlerResult<u32> {
-            Ok(async move { Ok(input + 1) }.boxed().into())
+            Ok(async move { Ok(input + 1) }.must_box())
         }
 
-        fn handle_req_not_debug(&mut self, _input: NotDebug) -> MyActorHandlerResult<()> {
-            Ok(async move { Ok(()) }.boxed().into())
+        fn handle_req_not_debug(
+            &mut self,
+            _input: NotDebug,
+        ) -> MyActorHandlerResult<()> {
+            Ok(async move { Ok(()) }.must_box())
         }
 
-        fn handle_funky_internal(&mut self, input: String) -> MyActorHandlerResult<String> {
+        fn handle_funky_internal(
+            &mut self,
+            input: String,
+        ) -> MyActorHandlerResult<String> {
             let mut i_s = self.internal_sender.clone();
-            Ok(
-                async move { Ok(i_s.ghost_actor_internal().test_msg(input).await.unwrap()) }
-                    .boxed()
-                    .into(),
-            )
+            Ok(async move {
+                Ok(i_s.ghost_actor_internal().test_msg(input).await.unwrap())
+            }
+            .must_box())
         }
 
         fn handle_funky_stop(&mut self) -> MyActorHandlerResult<()> {
             self.internal_sender.ghost_actor_shutdown_immediate();
-            Ok(async move { Ok(()) }.boxed().into())
+            Ok(async move { Ok(()) }.must_box())
         }
 
         fn handle_ghost_actor_shutdown(&mut self) {
@@ -110,12 +122,18 @@ mod tests {
                 .store(true, std::sync::atomic::Ordering::SeqCst);
         }
 
-        fn handle_ghost_actor_custom(&mut self, input: MyCustomChan) -> MyActorResult<()> {
+        fn handle_ghost_actor_custom(
+            &mut self,
+            input: MyCustomChan,
+        ) -> MyActorResult<()> {
             tokio::task::spawn(input.dispatch(self));
             Ok(())
         }
 
-        fn handle_ghost_actor_internal(&mut self, input: MyInternalChan) -> MyActorResult<()> {
+        fn handle_ghost_actor_internal(
+            &mut self,
+            input: MyInternalChan,
+        ) -> MyActorResult<()> {
             tokio::task::spawn(input.dispatch(self));
             Ok(())
         }
@@ -123,21 +141,22 @@ mod tests {
 
     impl MyActorImpl {
         /// Rather than using ghost_actor_spawn directly, use this simple spawn.
-        pub async fn spawn(
-        ) -> Result<(MyActorSender, std::sync::Arc<std::sync::atomic::AtomicBool>), MyError>
-        {
-            let did_shutdown = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+        pub async fn spawn() -> Result<
+            (MyActorSender, std::sync::Arc<std::sync::atomic::AtomicBool>),
+            MyError,
+        > {
+            let did_shutdown =
+                std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
             let did_shutdown_clone = did_shutdown.clone();
-            let (sender, driver) = MyActorSender::ghost_actor_spawn(Box::new(|i_s| {
+            let (sender, driver) = MyActorSender::ghost_actor_spawn(|i_s| {
                 async move {
                     Ok(MyActorImpl {
                         internal_sender: i_s,
                         did_shutdown,
                     })
                 }
-                .boxed()
-                .into()
-            }))
+                .must_box()
+            })
             .await?;
             tokio::task::spawn(driver);
             Ok((sender, did_shutdown_clone))
@@ -147,7 +166,9 @@ mod tests {
     fn init_tracing() {
         let _ = tracing::subscriber::set_global_default(
             tracing_subscriber::FmtSubscriber::builder()
-                .with_env_filter(tracing_subscriber::EnvFilter::from_default_env())
+                .with_env_filter(
+                    tracing_subscriber::EnvFilter::from_default_env(),
+                )
                 .compact()
                 .finish(),
         );
@@ -211,7 +232,8 @@ mod tests {
         sender.ghost_actor_shutdown().await.unwrap();
 
         let res = format!("{:?}", sender.add_one(42).await);
-        if &res != "Err(GhostError(SendError(SendError { kind: Disconnected })))"
+        if &res
+            != "Err(GhostError(SendError(SendError { kind: Disconnected })))"
             && &res != "Err(GhostError(ResponseError(Canceled)))"
         {
             panic!("expected send error");
@@ -229,7 +251,8 @@ mod tests {
         sender.funky_stop().await.unwrap();
 
         let res = format!("{:?}", sender.add_one(42).await);
-        if &res != "Err(GhostError(SendError(SendError { kind: Disconnected })))"
+        if &res
+            != "Err(GhostError(SendError(SendError { kind: Disconnected })))"
             && &res != "Err(GhostError(ResponseError(Canceled)))"
         {
             panic!("expected send error");

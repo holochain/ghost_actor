@@ -50,11 +50,19 @@ impl<T: 'static + Send> std::ops::FnOnce<(T,)> for GhostChanRespond<T> {
 pub trait GhostChanSend<T: 'static + Send> {
     /// Implement this in your sender newtype to forward GhostChan messages across a
     /// channel.
-    fn ghost_chan_send(&mut self, item: T) -> ::must_future::MustBoxFuture<'_, GhostResult<()>>;
+    fn ghost_chan_send(
+        &mut self,
+        item: T,
+    ) -> ::must_future::MustBoxFuture<'_, GhostResult<()>>;
 }
 
-impl<T: 'static + Send> GhostChanSend<T> for ::futures::channel::mpsc::Sender<T> {
-    fn ghost_chan_send(&mut self, item: T) -> ::must_future::MustBoxFuture<'_, GhostResult<()>> {
+impl<T: 'static + Send> GhostChanSend<T>
+    for ::futures::channel::mpsc::Sender<T>
+{
+    fn ghost_chan_send(
+        &mut self,
+        item: T,
+    ) -> ::must_future::MustBoxFuture<'_, GhostResult<()>> {
         use ::futures::{future::FutureExt, sink::SinkExt};
 
         let send_fut = self.send(item);

@@ -106,8 +106,7 @@ macro_rules! ghost_chan {
                                 let result = handler.[< handle_ $rname >](
                                     $($pname,)*
                                 );
-                                use $crate::dependencies::futures::future::FutureExt;
-                                async move {
+                                $crate::dependencies::must_future::MustBoxFuture::new(async move {
                                     let f = match result {
                                         Err(e) => {
                                             respond.respond(Err(e));
@@ -116,7 +115,7 @@ macro_rules! ghost_chan {
                                         Ok(f) => f,
                                     };
                                     respond.respond(f.await);
-                                }.boxed().into()
+                                })
                             }
                         )*
                     }
@@ -179,15 +178,13 @@ macro_rules! ghost_chan {
 
                     let send_fut = sender.ghost_chan_send(t);
 
-                    use $crate::dependencies::futures::future::FutureExt;
-
-                    async move {
+                    $crate::dependencies::must_future::MustBoxFuture::new(async move {
                         send_fut.await?;
                         let (data, span) = recv.await.map_err($crate::GhostError::from)?;
                         let _g = span.enter();
                         $crate::dependencies::tracing::trace!(response = ?data);
                         data
-                    }.boxed().into()
+                    })
                 }
             )*
 
