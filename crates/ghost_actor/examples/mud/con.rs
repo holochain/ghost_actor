@@ -12,6 +12,7 @@ pub type ConEventReceiver = futures::channel::mpsc::Receiver<ConEvent>;
 ghost_actor::ghost_actor! {
     /// A connected mud client.
     pub actor Con<MudError> {
+        fn prompt_set(p: Vec<u8>) -> ();
         fn write_raw(msg: Vec<u8>) -> ();
     }
 }
@@ -41,7 +42,6 @@ pub async fn spawn_con(
             let mut cmd = Vec::with_capacity(20);
             let mut wait_command = 0;
             while let Ok(c) = read_half.read_u8().await {
-                println!("char: {}", c);
                 if wait_command > 0 {
                     // mid IAC command - ignore the rest
                     wait_command -= 1;
@@ -59,13 +59,13 @@ pub async fn spawn_con(
                     8 | 127 => {
                         cmd.pop();
                         write_sender_clone
-                            .set_buffer(cmd.clone())
+                            .buffer_set(cmd.clone())
                             .await
                             .unwrap();
                     }
                     10 | 13 => {
                         write_sender_clone
-                            .set_buffer(Vec::with_capacity(0))
+                            .buffer_set(Vec::with_capacity(0))
                             .await
                             .unwrap();
                         if let Ok(s) = std::str::from_utf8(&cmd) {
@@ -80,10 +80,10 @@ pub async fn spawn_con(
                         cmd.clear();
                     }
                     _ => {
-                        if cmd.len() < 20 && c >= 0x20 && c <= 0x7e {
+                        if cmd.len() < 60 && c >= 0x20 && c <= 0x7e {
                             cmd.push(c);
                             write_sender_clone
-                                .set_buffer(cmd.clone())
+                                .buffer_add_char(c)
                                 .await
                                 .unwrap();
                         }
@@ -105,8 +105,10 @@ pub async fn spawn_con(
 ghost_actor::ghost_chan! {
     /// Incoming events from the connection.
     chan WriteControl<MudError> {
-        fn set_buffer(buffer: Vec<u8>) -> ();
-        fn write_line(line: Vec<u8>) -> ();
+        fn prompt_set(p: Vec<u8>) -> ();
+        fn buffer_add_char(char_: u8) -> ();
+        fn buffer_set(buffer: Vec<u8>) -> ();
+        fn line_write(line: Vec<u8>) -> ();
     }
 }
 
@@ -126,10 +128,30 @@ fn spawn_write_task(
     let (wc_send, mut wc_recv) = futures::channel::mpsc::channel(10);
 
     tokio::task::spawn(async move {
+        let mut prompt: Vec<u8> = Vec::new();
         let mut line_buffer: Vec<u8> = Vec::new();
         while let Some(cmd) = wc_recv.next().await {
             match cmd {
-                WriteControl::SetBuffer {
+                WriteControl::PromptSet { respond, p, .. } => {
+                    // set our prompt
+                    prompt = p;
+                    // move to start of line
+                    write_half.write_all(ERASE_LINE).await.unwrap();
+                    // write our current prompt/line_buffer
+                    write_half.write_all(&prompt).await.unwrap();
+                    write_half.write_all(&line_buffer).await.unwrap();
+                    // let our caller know we're done
+                    respond.respond(Ok(()));
+                }
+                WriteControl::BufferAddChar { respond, char_, .. } => {
+                    // append the char to the line_buffer
+                    line_buffer.push(char_);
+                    // output the char to the client
+                    write_half.write_all(&[char_]).await.unwrap();
+                    // let our caller know we're done
+                    respond.respond(Ok(()));
+                }
+                WriteControl::BufferSet {
                     respond, buffer, ..
                 } => {
                     // set our new prompt/line_buffer
@@ -137,11 +159,12 @@ fn spawn_write_task(
                     // move to start of line
                     write_half.write_all(ERASE_LINE).await.unwrap();
                     // write our current prompt/line_buffer
+                    write_half.write_all(&prompt).await.unwrap();
                     write_half.write_all(&line_buffer).await.unwrap();
                     // let our caller know we're done
                     respond.respond(Ok(()));
                 }
-                WriteControl::WriteLine { respond, line, .. } => {
+                WriteControl::LineWrite { respond, line, .. } => {
                     // move to start of line
                     write_half.write_all(ERASE_LINE).await.unwrap();
                     // write the output
@@ -149,6 +172,7 @@ fn spawn_write_task(
                     // move to beginnig of next line
                     write_half.write_all(&[10, 13]).await.unwrap();
                     // write our current prompt/line_buffer
+                    write_half.write_all(&prompt).await.unwrap();
                     write_half.write_all(&line_buffer).await.unwrap();
                     // let our caller know we're done
                     respond.respond(Ok(()));
@@ -165,10 +189,19 @@ struct ConImpl {
 }
 
 impl ConHandler<(), ()> for ConImpl {
+    fn handle_prompt_set(&mut self, p: Vec<u8>) -> ConHandlerResult<()> {
+        let mut write_sender = self.write_sender.clone();
+        Ok(async move {
+            write_sender.prompt_set(p).await?;
+            Ok(())
+        }
+        .must_box())
+    }
+
     fn handle_write_raw(&mut self, msg: Vec<u8>) -> ConHandlerResult<()> {
         let mut write_sender = self.write_sender.clone();
         Ok(async move {
-            write_sender.write_line(msg).await?;
+            write_sender.line_write(msg).await?;
             Ok(())
         }
         .must_box())

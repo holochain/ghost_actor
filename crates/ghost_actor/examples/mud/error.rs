@@ -16,5 +16,8 @@ pub enum MudError {
     OneshotRecvError(#[from] tokio::sync::oneshot::error::RecvError),
 
     #[error(transparent)]
+    OneshotCanceled(#[from] futures::channel::oneshot::Canceled),
+
+    #[error(transparent)]
     StdIoError(#[from] std::io::Error),
 }

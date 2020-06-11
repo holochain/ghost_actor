@@ -370,6 +370,15 @@ macro_rules! ghost_actor {
                 }
             }
 
+            impl<I> ::std::convert::From< [< $aname InternalSender >] <I> > for [< $aname Sender >]
+            where
+                I: 'static + Send,
+            {
+                fn from(i: [< $aname InternalSender >] <I>) -> Self {
+                    i.sender
+                }
+            }
+
             impl<I> ::std::ops::Deref for [< $aname InternalSender >] <I>
             where
                 I: 'static + Send,
