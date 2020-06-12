@@ -4,6 +4,7 @@ ghost_actor::ghost_chan! {
     /// Incoming events from the connection.
     pub chan ConEvent<MudError> {
         fn user_command(cmd: String) -> ();
+        fn destroy() -> ();
     }
 }
 
@@ -53,6 +54,7 @@ pub async fn spawn_con(
                         wait_command = 2;
                     }
                     27 | 3 | 4 => {
+                        let _ = rsend.destroy().await;
                         i_s.ghost_actor_shutdown_immediate();
                         return;
                     }

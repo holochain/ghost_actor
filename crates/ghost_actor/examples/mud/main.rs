@@ -16,44 +16,29 @@ use world::*;
 mod room;
 use room::*;
 
+mod entity;
+use entity::*;
+
 #[tokio::main(threaded_scheduler)]
 async fn main() {
-    tokio::task::spawn(listener_task());
+    let world = spawn_world().await;
 
-    let _world = spawn_world().await;
-
-    loop {
-        tokio::time::delay_for(std::time::Duration::from_millis(5000)).await;
-    }
-}
-
-async fn listener_task() {
     let mut listener =
         tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
     println!("telnet 127.0.0.1 {}", listener.local_addr().unwrap().port());
 
     while let Some(Ok(socket)) = listener.next().await {
         println!("got connection: {}", socket.peer_addr().unwrap());
-        tokio::task::spawn(socket_task(socket));
+        tokio::task::spawn(socket_task(world.clone(), socket));
     }
 }
 
-async fn socket_task(socket: tokio::net::TcpStream) {
-    let (mut csend, mut crecv) = spawn_con(socket).await;
-    csend
-        .prompt_set(b"ghost_actor_mud> ".to_vec())
-        .await
-        .unwrap();
+async fn socket_task(mut world: WorldSender, socket: tokio::net::TcpStream) {
+    let (c_send, c_recv) = spawn_con(socket).await;
 
-    while let Some(msg) = crecv.next().await {
-        match msg {
-            ConEvent::UserCommand { respond, cmd, .. } => {
-                respond.respond(Ok(()));
-                csend
-                    .write_raw(format!("you say: '{}'", cmd).into_bytes())
-                    .await
-                    .unwrap();
-            }
-        }
-    }
+    let mut room = world.room_get((0, 0, 0)).await.unwrap();
+
+    let entity = spawn_con_entity(world.clone(), c_send, c_recv).await;
+
+    room.entity_hold(entity).await.unwrap();
 }

@@ -35,6 +35,8 @@ ghost_actor::ghost_actor! {
         fn room_name_set(name: String) -> ();
         fn room_name_get() -> String;
         fn look(dir: Dir) -> String;
+        fn entity_hold(entity: EntitySender) -> ();
+        fn entity_drop(entity: EntitySender) -> ();
     }
 }
 
@@ -54,6 +56,7 @@ struct RoomImpl {
     world: WorldSender,
     room_key: RoomKey,
     name: String,
+    entities: Vec<EntitySender>,
 }
 
 impl RoomImpl {
@@ -62,6 +65,7 @@ impl RoomImpl {
             world,
             room_key,
             name: "[no-name]".to_string(),
+            entities: Vec::new(),
         }
     }
 }
@@ -95,5 +99,15 @@ impl RoomHandler<(), ()> for RoomImpl {
             Ok(format!("You see {}", room_name))
         }
         .must_box())
+    }
+
+    fn handle_entity_hold(&mut self, mut entity: EntitySender) -> RoomHandlerResult<()> {
+        self.entities.push(entity.clone());
+        let room_key = self.room_key.clone();
+
+        Ok(async move {
+            entity.room_set(room_key).await?;
+            Ok(())
+        }.must_box())
     }
 }
