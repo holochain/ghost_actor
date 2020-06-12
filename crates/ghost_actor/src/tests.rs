@@ -175,6 +175,27 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn it_can_use_eq_on_senders() {
+        let (sender_a1, _) = MyActorImpl::spawn().await.unwrap();
+        let (sender_b1, _) = MyActorImpl::spawn().await.unwrap();
+        let sender_a2 = sender_a1.clone();
+        assert!(sender_a1 == sender_a2);
+        assert!(sender_a1 != sender_b1);
+    }
+
+    #[tokio::test]
+    async fn it_can_hash_senders() {
+        let (sender_a1, _) = MyActorImpl::spawn().await.unwrap();
+        let (sender_b1, _) = MyActorImpl::spawn().await.unwrap();
+        let sender_a2 = sender_a1.clone();
+        let mut set = std::collections::HashSet::new();
+        assert!(set.insert(sender_a1));
+        assert!(set.insert(sender_b1));
+        assert!(!set.insert(sender_a2));
+        assert_eq!(2, set.len());
+    }
+
+    #[tokio::test]
     async fn it_check_echo() {
         init_tracing();
 
