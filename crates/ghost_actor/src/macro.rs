@@ -216,6 +216,20 @@ macro_rules! ghost_actor {
                 sender: $crate::dependencies::futures::channel::mpsc::Sender<[< __ghost_actor_ $aname:snake _chan >]::$aname>,
             }
 
+            impl ::std::cmp::PartialEq for [< $aname Sender >] {
+                fn eq(&self, o: &Self) -> bool {
+                    self.sender.same_receiver(&o.sender)
+                }
+            }
+
+            impl ::std::cmp::Eq for [< $aname Sender >] {}
+
+            impl ::std::hash::Hash for [< $aname Sender >] {
+                fn hash<H: ::std::hash::Hasher>(&self, state: &mut H) {
+                    self.sender.hash_receiver(state);
+                }
+            }
+
             impl [< $aname Sender >] {
                 /// Library users will likely not use this function,
                 /// look to the implementation of your actor for a simpler spawn.
@@ -354,6 +368,29 @@ macro_rules! ghost_actor {
                 sender: [< $aname Sender >],
                 shutdown: ::std::sync::Arc<::std::sync::RwLock<bool>>,
                 phantom_i: ::std::marker::PhantomData<I>,
+            }
+
+            impl<I> ::std::cmp::PartialEq for [< $aname InternalSender >] <I>
+            where
+                I: 'static + Send,
+            {
+                fn eq(&self, o: &Self) -> bool {
+                    self.sender.eq(&o.sender)
+                }
+            }
+
+            impl<I> ::std::cmp::Eq for [< $aname InternalSender >] <I>
+            where
+                I: 'static + Send,
+            {}
+
+            impl<I> ::std::hash::Hash for [< $aname InternalSender >] <I>
+            where
+                I: 'static + Send,
+            {
+                fn hash<H: ::std::hash::Hasher>(&self, state: &mut H) {
+                    self.sender.hash(state)
+                }
             }
 
             // have to manually impl so we don't introduce clone bound on `I`
