@@ -54,7 +54,8 @@ pub async fn spawn_con(
                         wait_command = 2;
                     }
                     27 | 3 | 4 => {
-                        let _ = rsend.destroy().await;
+                        let _ = ConEventSend::destroy(&mut rsend).await;
+                        let _ = write_sender_clone.destroy().await;
                         i_s.ghost_actor_shutdown_immediate();
                         return;
                     }
@@ -111,6 +112,7 @@ ghost_actor::ghost_chan! {
         fn buffer_add_char(char_: u8) -> ();
         fn buffer_set(buffer: Vec<u8>) -> ();
         fn line_write(line: Vec<u8>) -> ();
+        fn destroy() -> ();
     }
 }
 
@@ -178,6 +180,10 @@ fn spawn_write_task(
                     write_half.write_all(&line_buffer).await.unwrap();
                     // let our caller know we're done
                     respond.respond(Ok(()));
+                }
+                WriteControl::Destroy { respond, .. } => {
+                    respond.respond(Ok(()));
+                    return;
                 }
             }
         }

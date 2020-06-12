@@ -1,4 +1,5 @@
 use crate::*;
+use std::collections::HashSet;
 
 pub type RoomKey = (i32, i32, i32);
 
@@ -35,6 +36,7 @@ ghost_actor::ghost_actor! {
         fn room_name_set(name: String) -> ();
         fn room_name_get() -> String;
         fn look(dir: Dir) -> String;
+        fn say(msg: String) -> ();
         fn entity_hold(entity: EntitySender) -> ();
         fn entity_drop(entity: EntitySender) -> ();
     }
@@ -56,7 +58,7 @@ struct RoomImpl {
     world: WorldSender,
     room_key: RoomKey,
     name: String,
-    entities: Vec<EntitySender>,
+    entities: HashSet<EntitySender>,
 }
 
 impl RoomImpl {
@@ -65,7 +67,7 @@ impl RoomImpl {
             world,
             room_key,
             name: "[no-name]".to_string(),
-            entities: Vec::new(),
+            entities: HashSet::new(),
         }
     }
 }
@@ -101,13 +103,36 @@ impl RoomHandler<(), ()> for RoomImpl {
         .must_box())
     }
 
-    fn handle_entity_hold(&mut self, mut entity: EntitySender) -> RoomHandlerResult<()> {
-        self.entities.push(entity.clone());
+    fn handle_say(&mut self, msg: String) -> RoomHandlerResult<()> {
+        let entities = self.entities.iter().cloned().collect::<Vec<_>>();
+        Ok(async move {
+            for mut e in entities {
+                let _ = e.say(msg.clone()).await;
+            }
+            Ok(())
+        }
+        .must_box())
+    }
+
+    fn handle_entity_hold(
+        &mut self,
+        mut entity: EntitySender,
+    ) -> RoomHandlerResult<()> {
+        self.entities.insert(entity.clone());
         let room_key = self.room_key.clone();
 
         Ok(async move {
             entity.room_set(room_key).await?;
             Ok(())
-        }.must_box())
+        }
+        .must_box())
+    }
+
+    fn handle_entity_drop(
+        &mut self,
+        entity: EntitySender,
+    ) -> RoomHandlerResult<()> {
+        self.entities.remove(&entity);
+        Ok(async move { Ok(()) }.must_box())
     }
 }

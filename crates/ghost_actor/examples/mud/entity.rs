@@ -19,7 +19,8 @@ pub async fn spawn_con_entity(
         .unwrap();
 
     let (sender, driver) = EntitySender::ghost_actor_spawn(|i_s| {
-        async move { Ok(ConEntityImpl::new(i_s, world, c_send, c_recv)) }.must_box()
+        async move { Ok(ConEntityImpl::new(i_s, world, c_send, c_recv)) }
+            .must_box()
     })
     .await
     .unwrap();
@@ -62,16 +63,27 @@ impl ConEntityImpl {
 }
 
 impl EntityHandler<(), EntityInner> for ConEntityImpl {
-    fn handle_say(&mut self, _msg: String) -> EntityHandlerResult<()> {
-        Ok(async move { Ok(()) }.must_box())
+    fn handle_say(&mut self, msg: String) -> EntityHandlerResult<()> {
+        let mut c_send = self.c_send.clone();
+        Ok(async move {
+            c_send.write_raw(msg.into_bytes()).await?;
+            Ok(())
+        }
+        .must_box())
     }
 
-    fn handle_room_set(&mut self, room_key: RoomKey) -> EntityHandlerResult<()> {
+    fn handle_room_set(
+        &mut self,
+        room_key: RoomKey,
+    ) -> EntityHandlerResult<()> {
         self.cur_room = room_key;
         Ok(async move { Ok(()) }.must_box())
     }
 
-    fn handle_ghost_actor_internal(&mut self, input: EntityInner) -> EntityResult<()> {
+    fn handle_ghost_actor_internal(
+        &mut self,
+        input: EntityInner,
+    ) -> EntityResult<()> {
         tokio::task::spawn(input.dispatch(self));
         Ok(())
     }
@@ -84,24 +96,71 @@ ghost_actor::ghost_chan! {
 }
 
 impl EntityInnerHandler for ConEntityImpl {
-    fn handle_con_recv(&mut self, evt: ConEvent) -> EntityInnerHandlerResult<()> {
+    fn handle_con_recv(
+        &mut self,
+        evt: ConEvent,
+    ) -> EntityInnerHandlerResult<()> {
         use futures::future::FutureExt;
-        Ok(evt.dispatch(self).map(|_|Ok(())).must_box())
+        Ok(evt.dispatch(self).map(|_| Ok(())).must_box())
     }
 }
 
 impl ConEventHandler for ConEntityImpl {
-    fn handle_user_command(&mut self, cmd: String) -> ConEventHandlerResult<()> {
+    fn handle_user_command(
+        &mut self,
+        cmd: String,
+    ) -> ConEventHandlerResult<()> {
+        let mut world = self.world.clone();
+        let room_key = self.cur_room.clone();
         let mut c_send = self.c_send.clone();
         Ok(async move {
-            c_send
-                .write_raw(format!("you say: '{}'", cmd).into_bytes())
-                .await?;
+            match UserCommand::parse(&cmd) {
+                UserCommand::Say(s) => {
+                    let mut room = world.room_get(room_key).await?;
+                    room.say(format!("[user] says: '{}'", s)).await?;
+                }
+                UserCommand::Unknown(s) => {
+                    c_send.write_raw(s.into_bytes()).await?;
+                }
+            }
+
             Ok(())
-        }.must_box())
+        }
+        .must_box())
     }
 
     fn handle_destroy(&mut self) -> ConEventHandlerResult<()> {
-        Ok(async move { Ok(()) }.must_box())
+        let i_s = self.internal_sender.clone();
+        let mut world = self.world.clone();
+        let room_key = self.cur_room.clone();
+        Ok(async move {
+            let mut room = world.room_get(room_key).await?;
+            room.entity_drop(i_s.into()).await?;
+            Ok(())
+        }
+        .must_box())
+    }
+}
+
+enum UserCommand {
+    Say(String),
+    Unknown(String),
+}
+
+impl UserCommand {
+    pub fn parse(u: &str) -> Self {
+        match u.chars().next() {
+            Some('s') | Some('S') => {
+                let idx = u.find(char::is_whitespace).unwrap_or(u.len());
+                UserCommand::Say(u[idx..].trim().to_string())
+            }
+            _ => {
+                let idx = u.find(char::is_whitespace).unwrap_or(u.len());
+                UserCommand::Unknown(format!(
+                    "unknown command: '{}'",
+                    &u[..idx]
+                ))
+            }
+        }
     }
 }
