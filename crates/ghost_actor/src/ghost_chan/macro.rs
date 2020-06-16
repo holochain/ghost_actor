@@ -80,7 +80,7 @@ macro_rules! ghost_chan {
                     span: $crate::dependencies::tracing::Span,
 
                     /// Response callback - respond to the request.
-                    respond: $crate::ghost_chan::GhostChanRespond<
+                    respond: $crate::GhostRespond<
                         ::std::result::Result<$rret, $aerr>,
                     >,
 
@@ -170,7 +170,7 @@ macro_rules! ghost_chan {
 
                     let t = $aname :: $rnamec {
                         span: $crate::dependencies::tracing::debug_span!(stringify!($rname)),
-                        respond: $crate::ghost_chan::GhostChanRespond::new(send, concat!(stringify!($rname), "_respond")),
+                        respond: $crate::GhostRespond::new(send, concat!(stringify!($rname), "_respond")),
                         $(
                             $pname,
                         )*
