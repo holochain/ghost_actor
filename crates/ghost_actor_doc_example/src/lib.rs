@@ -8,56 +8,95 @@ pub enum MyError {
     GhostError(#[from] crate::GhostError),
 }
 
-crate::ghost_chan! {
-    /// Test multi-line doc on channel type.
-    ///
-    /// # Example
-    ///
-    /// ```
-    /// // we can even run doc-tests
-    /// assert_eq!(true, true);
-    /// ```
-    pub chan MyCustomChan<MyError> {
-        /// this function has no inputs or outputs -- not all that useful
-        fn no_input_no_output() -> ();
+pub mod my_event {
+    use super::MyError;
 
-        /// this function has one input and no outputs
-        fn one_input_no_outpun(i: u32) -> ();
+    crate::ghost_event! {
+        /// Test multi-line doc on actor type.
+        ///
+        /// # Example
+        ///
+        /// ```
+        /// // we can even run doc-tests
+        /// assert_eq!(true, true);
+        /// ```
+        pub event MyEvent<MyError> {
+            /// this function has no inputs or outputs -- not all that useful
+            fn no_input_no_output() -> ();
 
-        /// this function has no inputs and one output
-        fn no_input_one_output() -> u32;
+            /// this function has one input and no outputs
+            fn one_input_no_outpun(i: u32) -> ();
 
-        /// 1 and 1
-        fn one_input_one_output(i: u32) -> u32;
+            /// this function has no inputs and one output
+            fn no_input_one_output() -> u32;
 
-        /// 2 and 2
-        fn two_inputs_two_outputs(i: u32, j: u32) -> (u32, u32);
+            /// 1 and 1
+            fn one_input_one_output(i: u32) -> u32;
+
+            /// 2 and 2
+            fn two_inputs_two_outputs(i: u32, j: u32) -> (u32, u32);
+        }
     }
 }
 
-crate::ghost_actor! {
-    /// Test multi-line doc on actor type.
-    ///
-    /// # Example
-    ///
-    /// ```
-    /// // we can even run doc-tests
-    /// assert_eq!(true, true);
-    /// ```
-    pub actor MyActor<MyError> {
-        /// this function has no inputs or outputs -- not all that useful
-        fn no_input_no_output() -> ();
+pub mod my_custom_chan {
+    use super::MyError;
 
-        /// this function has one input and no outputs
-        fn one_input_no_outpun(i: u32) -> ();
+    crate::ghost_chan! {
+        /// Test multi-line doc on channel type.
+        ///
+        /// # Example
+        ///
+        /// ```
+        /// // we can even run doc-tests
+        /// assert_eq!(true, true);
+        /// ```
+        pub chan MyCustomChan<MyError> {
+            /// this function has no inputs or outputs -- not all that useful
+            fn no_input_no_output() -> ();
 
-        /// this function has no inputs and one output
-        fn no_input_one_output() -> u32;
+            /// this function has one input and no outputs
+            fn one_input_no_outpun(i: u32) -> ();
 
-        /// 1 and 1
-        fn one_input_one_output(i: u32) -> u32;
+            /// this function has no inputs and one output
+            fn no_input_one_output() -> u32;
 
-        /// 2 and 2
-        fn two_inputs_two_outputs(i: u32, j: u32) -> (u32, u32);
+            /// 1 and 1
+            fn one_input_one_output(i: u32) -> u32;
+
+            /// 2 and 2
+            fn two_inputs_two_outputs(i: u32, j: u32) -> (u32, u32);
+        }
+    }
+}
+
+pub mod my_actor {
+    use super::MyError;
+
+    crate::ghost_actor! {
+        /// Test multi-line doc on actor type.
+        ///
+        /// # Example
+        ///
+        /// ```
+        /// // we can even run doc-tests
+        /// assert_eq!(true, true);
+        /// ```
+        pub actor MyActor<MyError> {
+            /// this function has no inputs or outputs -- not all that useful
+            fn no_input_no_output() -> ();
+
+            /// this function has one input and no outputs
+            fn one_input_no_outpun(i: u32) -> ();
+
+            /// this function has no inputs and one output
+            fn no_input_one_output() -> u32;
+
+            /// 1 and 1
+            fn one_input_one_output(i: u32) -> u32;
+
+            /// 2 and 2
+            fn two_inputs_two_outputs(i: u32, j: u32) -> (u32, u32);
+        }
     }
 }

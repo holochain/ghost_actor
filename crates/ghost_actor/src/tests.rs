@@ -19,6 +19,39 @@ mod tests {
         }
     }
 
+    ghost_event! {
+        /// test event
+        pub event MyEvent<MyError> {
+            /// add 1
+            fn add_1(input: i32) -> i32;
+        }
+    }
+
+    struct MyEventImpl;
+
+    impl GhostHandler<MyEvent> for MyEventImpl {}
+
+    impl MyEventHandler for MyEventImpl {
+        fn handle_add_1(&mut self, input: i32) -> MyEventHandlerResult<i32> {
+            Ok(async move {
+                Ok(input + 1)
+            }.must_box())
+        }
+    }
+
+    #[tokio::test]
+    async fn it_can_test_event() {
+        let (s, mut r) = spawn_ghost_channel::<MyEvent>();
+        tokio::spawn(async move {
+            let mut handler = MyEventImpl;
+            use futures::stream::StreamExt;
+            while let Some(evt) = r.next().await {
+                evt.ghost_actor_dispatch(&mut handler);
+            }
+        });
+        assert_eq!(43, s.add_1(42).await.unwrap());
+    }
+
     ghost_chan! {
         /// custom chan
         pub chan MyCustomChan<MyError> {

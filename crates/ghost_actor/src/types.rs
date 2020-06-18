@@ -106,62 +106,65 @@ impl<T: 'static + Send> std::ops::FnOnce<(T,)> for GhostRespond<T> {
 }
 
 /// A message that can be sent over a GhostEvent channel.
-pub trait GhostEvent: 'static + Send + Sized {
-    /// Consume this event by processing it with a GhostHandler.
-    fn ghost_actor_handle<H: GhostHandler<Self>>(self, h: &mut H) {
-        h.ghost_actor_handle(self);
-    }
+pub trait GhostEvent: 'static + Send + Sized {}
+
+/// An upgraded GhostEvent that knows how to dispatch to a handler.
+pub trait GhostDispatch<H: GhostHandler<Self>>: GhostEvent {
+    /// Process a dispatch event with a given GhostHandler.
+    fn ghost_actor_dispatch(self, h: &mut H);
 }
 
 /// An item that can handle an incoming GhostEvent.
-pub trait GhostHandler<Event: GhostEvent>: 'static + Send {
-    /// Process an event with this GhostHandler.
-    fn ghost_actor_handle(&mut self, event: Event);
+pub trait GhostHandler<D: GhostDispatch<Self>>: 'static + Send + Sized {
+    /// Process a dispatch event with this GhostHandler.
+    fn ghost_actor_dispatch(&mut self, d: D) {
+        d.ghost_actor_dispatch(self);
+    }
 }
 
 /// Indicates an item is the Sender side of a channel that can
 /// forward/handle GhostEvents.
-pub trait GhostChannelSender<Event: GhostEvent>:
+pub trait GhostChannelSender<E: GhostEvent>:
     'static + Send + Sync + Sized + Clone
 {
     /// Forward a GhostEvent along this channel.
-    fn ghost_actor_channel_send(&self, event: Event) -> GhostFuture<()>;
+    fn ghost_actor_channel_send(&self, event: E) -> GhostFuture<()>;
 }
 
 /// Indicates an item is the Receiver side of a channel that can
 /// forward/handle GhostEvents.
-pub trait GhostChannelReceiver<Event: GhostEvent>:
-    'static + Send + Sized + ::futures::stream::Stream<Item = Event>
+pub trait GhostChannelReceiver<E: GhostEvent>:
+    'static + Send + Sized + ::futures::stream::Stream<Item = E>
 {
 }
 
 /// A provided GhostSender (impl GhostChannelSender) implementation.
-pub struct GhostSender<Event: GhostEvent>(
-    ::futures::channel::mpsc::Sender<Event>,
+pub struct GhostSender<E: GhostEvent>(
+    ::futures::channel::mpsc::Sender<E>,
 );
 
-impl<Event: GhostEvent> ::std::clone::Clone for GhostSender<Event> {
+impl<E: GhostEvent> ::std::clone::Clone for GhostSender<E> {
     fn clone(&self) -> Self {
         GhostSender(self.0.clone())
     }
 }
 
-impl<Event: GhostEvent> ::std::cmp::PartialEq for GhostSender<Event> {
+impl< E: GhostEvent> ::std::cmp::PartialEq for GhostSender<E> {
     fn eq(&self, o: &Self) -> bool {
         self.0.same_receiver(&o.0)
     }
 }
 
-impl<Event: GhostEvent> ::std::cmp::Eq for GhostSender<Event> {}
+impl<E: GhostEvent> ::std::cmp::Eq for GhostSender<E> {}
 
-impl<Event: GhostEvent> ::std::hash::Hash for GhostSender<Event> {
-    fn hash<H: ::std::hash::Hasher>(&self, state: &mut H) {
+impl<E: GhostEvent> ::std::hash::Hash for GhostSender<E> {
+    fn hash<Hasher: ::std::hash::Hasher>(&self, state: &mut Hasher) {
         self.0.hash_receiver(state);
     }
 }
 
-impl<Event: GhostEvent> GhostChannelSender<Event> for GhostSender<Event> {
-    fn ghost_actor_channel_send(&self, event: Event) -> GhostFuture<()> {
+impl<E: GhostEvent> GhostChannelSender<E> for GhostSender<E> {
+    fn ghost_actor_channel_send(&self, event: E) -> GhostFuture<()> {
         let mut sender = self.0.clone();
         ::must_future::MustBoxFuture::new(async move {
             futures::sink::SinkExt::send(&mut sender, event).await?;
@@ -171,27 +174,27 @@ impl<Event: GhostEvent> GhostChannelSender<Event> for GhostSender<Event> {
 }
 
 /// A provided GhostReceiver (impl GhostChannelReceiver) implementation.
-pub struct GhostReceiver<Event: GhostEvent>(
-    ::futures::channel::mpsc::Receiver<Event>,
-);
+pub struct GhostReceiver<E: GhostEvent>(Box<
+    ::futures::channel::mpsc::Receiver<E>,
+>);
 
-impl<Event: GhostEvent> ::futures::stream::Stream for GhostReceiver<Event> {
-    type Item = Event;
+impl<E: GhostEvent> ::futures::stream::Stream for GhostReceiver<E> {
+    type Item = E;
 
     fn poll_next(
-        mut self: ::std::pin::Pin<&mut GhostReceiver<Event>>,
+        self: ::std::pin::Pin<&mut Self>,
         cx: &mut ::std::task::Context,
     ) -> ::std::task::Poll<Option<Self::Item>> {
-        let p = ::std::pin::Pin::new(&mut self.0);
+        let p = ::std::pin::Pin::new(&mut (self.get_mut().0));
         ::futures::stream::Stream::poll_next(p, cx)
     }
 }
 
-impl<Event: GhostEvent> GhostChannelReceiver<Event> for GhostReceiver<Event> {}
+impl<E: GhostEvent> GhostChannelReceiver<E> for GhostReceiver<E> {}
 
 /// Spawn a new GhostChannel send/receive pair.
-pub fn spawn_ghost_channel<Event: GhostEvent>(
-) -> (GhostSender<Event>, GhostReceiver<Event>) {
+pub fn spawn_ghost_channel<E: GhostEvent>(
+) -> (GhostSender<E>, GhostReceiver<E>) {
     let (s, r) = ::futures::channel::mpsc::channel(10);
-    (GhostSender(s), GhostReceiver(r))
+    (GhostSender(s), GhostReceiver(Box::new(r)))
 }
