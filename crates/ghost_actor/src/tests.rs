@@ -1,3 +1,51 @@
+#![allow(dead_code)]
+
+#[cfg(test)]
+mod hello_world {
+    use crate::*;
+
+    ghost_actor! {
+        pub actor HelloWorldActor<GhostError> {
+            fn hello_world() -> String;
+        }
+    }
+
+    struct HelloWorldImpl;
+
+    impl GhostControlHandler for HelloWorldImpl {}
+
+    impl GhostHandler<HelloWorldActor> for HelloWorldImpl {}
+
+    impl HelloWorldActorHandler for HelloWorldImpl {
+        fn handle_hello_world(
+            &mut self,
+        ) -> HelloWorldActorHandlerResult<String> {
+            Ok(must_future::MustBoxFuture::new(async move {
+                Ok("hello world!".to_string())
+            }))
+        }
+    }
+
+    impl HelloWorldImpl {
+        pub async fn spawn() -> GhostSender<HelloWorldActor> {
+            let builder = actor_builder::GhostActorBuilder::new();
+            let sender = builder
+                .channel_factory()
+                .create_channel::<HelloWorldActor>()
+                .await
+                .unwrap();
+            tokio::task::spawn(builder.spawn(HelloWorldImpl));
+            sender
+        }
+    }
+
+    #[tokio::test]
+    async fn hello_world_example() {
+        let hello_world = HelloWorldImpl::spawn().await;
+        assert_eq!("hello world!", &hello_world.hello_world().await.unwrap());
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use crate::*;
@@ -19,17 +67,9 @@ mod tests {
         }
     }
 
-    ghost_chan! {
+    ghost_actor! {
         /// custom chan
-        pub chan MyCustomChan<MyError> {
-            /// will respond with 'echo: input'.
-            fn test_msg(input: String) -> String;
-        }
-    }
-
-    ghost_chan! {
-        /// custom chan
-        pub chan MyInternalChan<MyError> {
+        pub actor MyInternalChan<MyError> {
             /// will respond with 'echo: input'.
             fn test_msg(input: String) -> String;
         }
@@ -45,7 +85,6 @@ mod tests {
             fn add_one(input: u32) -> u32;
 
             /// Ensure we can take params that don't implement Debug.
-            #[allow(dead_code)]
             fn req_not_debug(input: NotDebug) -> ();
 
             /// Makes an internal_sender request from outside. In reality, you'd never need a command like this.
@@ -58,19 +97,20 @@ mod tests {
 
     /// An example implementation of the example MyActor GhostActor.
     struct MyActorImpl {
-        internal_sender: MyActorInternalSender<MyInternalChan>,
+        internal_sender: GhostSender<MyInternalChan>,
         did_shutdown: std::sync::Arc<std::sync::atomic::AtomicBool>,
     }
 
-    impl MyCustomChanHandler for MyActorImpl {
-        fn handle_test_msg(
-            &mut self,
-            input: String,
-        ) -> MyCustomChanHandlerResult<String> {
-            Ok(async move { Ok(format!("custom respond to: {}", input)) }
-                .must_box())
+    /// All handlers must implement this trait.
+    /// (provides the handle_ghost_actor_shutdown callback)
+    impl GhostControlHandler for MyActorImpl {
+        fn handle_ghost_actor_shutdown(&mut self) {
+            self.did_shutdown
+                .store(true, std::sync::atomic::Ordering::SeqCst);
         }
     }
+
+    impl GhostHandler<MyInternalChan> for MyActorImpl {}
 
     impl MyInternalChanHandler for MyActorImpl {
         fn handle_test_msg(
@@ -82,7 +122,9 @@ mod tests {
         }
     }
 
-    impl MyActorHandler<MyCustomChan, MyInternalChan> for MyActorImpl {
+    impl GhostHandler<MyActor> for MyActorImpl {}
+
+    impl MyActorHandler for MyActorImpl {
         fn handle_test_message(
             &mut self,
             input: String,
@@ -105,60 +147,48 @@ mod tests {
             &mut self,
             input: String,
         ) -> MyActorHandlerResult<String> {
-            let mut i_s = self.internal_sender.clone();
-            Ok(async move {
-                Ok(i_s.ghost_actor_internal().test_msg(input).await.unwrap())
-            }
-            .must_box())
+            let fut = self.internal_sender.test_msg(input);
+            Ok(async move { Ok(fut.await.unwrap()) }.must_box())
         }
 
         fn handle_funky_stop(&mut self) -> MyActorHandlerResult<()> {
-            self.internal_sender.ghost_actor_shutdown_immediate();
-            Ok(async move { Ok(()) }.must_box())
-        }
-
-        fn handle_ghost_actor_shutdown(&mut self) {
-            self.did_shutdown
-                .store(true, std::sync::atomic::Ordering::SeqCst);
-        }
-
-        fn handle_ghost_actor_custom(
-            &mut self,
-            input: MyCustomChan,
-        ) -> MyActorResult<()> {
-            tokio::task::spawn(input.dispatch(self));
-            Ok(())
-        }
-
-        fn handle_ghost_actor_internal(
-            &mut self,
-            input: MyInternalChan,
-        ) -> MyActorResult<()> {
-            tokio::task::spawn(input.dispatch(self));
-            Ok(())
+            let fut = self.internal_sender.ghost_actor_shutdown_immediate();
+            Ok(async move { Ok(fut.await.unwrap()) }.must_box())
         }
     }
 
     impl MyActorImpl {
         /// Rather than using ghost_actor_spawn directly, use this simple spawn.
         pub async fn spawn() -> Result<
-            (MyActorSender, std::sync::Arc<std::sync::atomic::AtomicBool>),
+            (
+                GhostSender<MyActor>,
+                std::sync::Arc<std::sync::atomic::AtomicBool>,
+            ),
             MyError,
         > {
             let did_shutdown =
                 std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
             let did_shutdown_clone = did_shutdown.clone();
-            let (sender, driver) = MyActorSender::ghost_actor_spawn(|i_s| {
-                async move {
-                    Ok(MyActorImpl {
-                        internal_sender: i_s,
-                        did_shutdown,
-                    })
-                }
-                .must_box()
-            })
-            .await?;
-            tokio::task::spawn(driver);
+
+            let builder = actor_builder::GhostActorBuilder::new();
+
+            let sender = builder
+                .channel_factory()
+                .create_channel::<MyActor>()
+                .await
+                .unwrap();
+
+            let internal_sender = builder
+                .channel_factory()
+                .create_channel::<MyInternalChan>()
+                .await
+                .unwrap();
+
+            tokio::task::spawn(builder.spawn(MyActorImpl {
+                internal_sender,
+                did_shutdown,
+            }));
+
             Ok((sender, did_shutdown_clone))
         }
     }
@@ -199,7 +229,7 @@ mod tests {
     async fn it_check_echo() {
         init_tracing();
 
-        let (mut sender, _) = MyActorImpl::spawn().await.unwrap();
+        let (sender, _) = MyActorImpl::spawn().await.unwrap();
 
         assert_eq!(
             "echo: test",
@@ -211,32 +241,16 @@ mod tests {
     async fn it_check_add_1() {
         init_tracing();
 
-        let (mut sender, _) = MyActorImpl::spawn().await.unwrap();
+        let (sender, _) = MyActorImpl::spawn().await.unwrap();
 
         assert_eq!(43, sender.add_one(42).await.unwrap());
-    }
-
-    #[tokio::test]
-    async fn it_check_custom() {
-        init_tracing();
-
-        let (mut sender, _) = MyActorImpl::spawn().await.unwrap();
-
-        assert_eq!(
-            "custom respond to: c_test",
-            &sender
-                .ghost_actor_custom::<MyCustomChan>()
-                .test_msg("c_test".into())
-                .await
-                .unwrap()
-        );
     }
 
     #[tokio::test]
     async fn it_check_internal() {
         init_tracing();
 
-        let (mut sender, _) = MyActorImpl::spawn().await.unwrap();
+        let (sender, _) = MyActorImpl::spawn().await.unwrap();
 
         assert_eq!(
             "internal respond to: i_test",
@@ -248,7 +262,7 @@ mod tests {
     async fn it_check_shutdown() {
         init_tracing();
 
-        let (mut sender, did_shutdown) = MyActorImpl::spawn().await.unwrap();
+        let (sender, did_shutdown) = MyActorImpl::spawn().await.unwrap();
 
         sender.ghost_actor_shutdown().await.unwrap();
 
@@ -267,7 +281,7 @@ mod tests {
     async fn it_check_internal_shutdown() {
         init_tracing();
 
-        let (mut sender, did_shutdown) = MyActorImpl::spawn().await.unwrap();
+        let (sender, did_shutdown) = MyActorImpl::spawn().await.unwrap();
 
         sender.funky_stop().await.unwrap();
 
