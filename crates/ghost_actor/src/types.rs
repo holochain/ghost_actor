@@ -129,6 +129,16 @@ pub trait GhostChannelSender<E: GhostEvent>:
 {
     /// Forward a GhostEvent along this channel.
     fn ghost_actor_channel_send(&self, event: E) -> GhostFuture<()>;
+
+    /// Shutdown the actor once all pending messages have been processed.
+    /// Future completes when the actor is shutdown.
+    fn ghost_actor_shutdown(&self) -> GhostFuture<()>;
+
+    /// Shutdown the actor immediately. All pending tasks will error.
+    fn ghost_actor_shutdown_immediate(&self) -> GhostFuture<()>;
+
+    /// Returns true if the receiving actor is still running.
+    fn ghost_actor_active(&self) -> bool;
 }
 
 /// Indicates an item is the Receiver side of a channel that can
@@ -141,15 +151,30 @@ pub trait GhostChannelReceiver<E: GhostEvent>:
 /// A provided GhostSender (impl GhostChannelSender) implementation.
 pub struct GhostSender<E: GhostEvent>(
     ::futures::channel::mpsc::Sender<E>,
+    std::sync::Arc<crate::actor_builder::GhostActorControl>,
 );
 
-impl<E: GhostEvent> ::std::clone::Clone for GhostSender<E> {
-    fn clone(&self) -> Self {
-        GhostSender(self.0.clone())
+impl<E: GhostEvent> GhostSender<E> {
+    pub(crate) fn new(
+        ghost_actor_control: std::sync::Arc<
+            crate::actor_builder::GhostActorControl,
+        >,
+    ) -> (Self, GhostReceiver<E>) {
+        let (s, r) = ::futures::channel::mpsc::channel(10);
+        (
+            GhostSender(s, ghost_actor_control),
+            GhostReceiver(Box::new(r)),
+        )
     }
 }
 
-impl< E: GhostEvent> ::std::cmp::PartialEq for GhostSender<E> {
+impl<E: GhostEvent> ::std::clone::Clone for GhostSender<E> {
+    fn clone(&self) -> Self {
+        GhostSender(self.0.clone(), self.1.clone())
+    }
+}
+
+impl<E: GhostEvent> ::std::cmp::PartialEq for GhostSender<E> {
     fn eq(&self, o: &Self) -> bool {
         self.0.same_receiver(&o.0)
     }
@@ -171,12 +196,24 @@ impl<E: GhostEvent> GhostChannelSender<E> for GhostSender<E> {
             Ok(())
         })
     }
+
+    fn ghost_actor_shutdown(&self) -> GhostFuture<()> {
+        self.1.ghost_actor_shutdown()
+    }
+
+    fn ghost_actor_shutdown_immediate(&self) -> GhostFuture<()> {
+        self.1.ghost_actor_shutdown_immediate()
+    }
+
+    fn ghost_actor_active(&self) -> bool {
+        self.1.ghost_actor_active()
+    }
 }
 
 /// A provided GhostReceiver (impl GhostChannelReceiver) implementation.
-pub struct GhostReceiver<E: GhostEvent>(Box<
-    ::futures::channel::mpsc::Receiver<E>,
->);
+pub struct GhostReceiver<E: GhostEvent>(
+    Box<::futures::channel::mpsc::Receiver<E>>,
+);
 
 impl<E: GhostEvent> ::futures::stream::Stream for GhostReceiver<E> {
     type Item = E;
@@ -191,10 +228,3 @@ impl<E: GhostEvent> ::futures::stream::Stream for GhostReceiver<E> {
 }
 
 impl<E: GhostEvent> GhostChannelReceiver<E> for GhostReceiver<E> {}
-
-/// Spawn a new GhostChannel send/receive pair.
-pub fn spawn_ghost_channel<E: GhostEvent>(
-) -> (GhostSender<E>, GhostReceiver<E>) {
-    let (s, r) = ::futures::channel::mpsc::channel(10);
-    (GhostSender(s), GhostReceiver(Box::new(r)))
-}

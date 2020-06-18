@@ -33,23 +33,20 @@ mod tests {
 
     impl MyEventHandler for MyEventImpl {
         fn handle_add_1(&mut self, input: i32) -> MyEventHandlerResult<i32> {
-            Ok(async move {
-                Ok(input + 1)
-            }.must_box())
+            Ok(async move { Ok(input + 1) }.must_box())
         }
     }
 
     #[tokio::test]
     async fn it_can_test_event() {
-        let (s, mut r) = spawn_ghost_channel::<MyEvent>();
-        tokio::spawn(async move {
-            let mut handler = MyEventImpl;
-            use futures::stream::StreamExt;
-            while let Some(evt) = r.next().await {
-                evt.ghost_actor_dispatch(&mut handler);
-            }
-        });
-        assert_eq!(43, s.add_1(42).await.unwrap());
+        let builder = actor_builder::GhostActorBuilder::new();
+        let sender = builder
+            .channel_factory()
+            .create_channel::<MyEvent>()
+            .await
+            .unwrap();
+        tokio::task::spawn(builder.spawn(MyEventImpl));
+        assert_eq!(43, sender.add_1(42).await.unwrap());
     }
 
     ghost_chan! {

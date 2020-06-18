@@ -198,6 +198,8 @@ pub use types::*;
 mod event_macro;
 pub use event_macro::*;
 
+pub mod actor_builder;
+
 pub mod ghost_chan;
 
 mod r#macro;
