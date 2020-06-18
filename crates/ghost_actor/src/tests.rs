@@ -1,6 +1,52 @@
 #![allow(dead_code)]
 
 #[cfg(test)]
+mod hello_world {
+    use crate::*;
+
+    ghost_actor! {
+        pub actor HelloWorldActor<GhostError> {
+            fn hello_world() -> String;
+        }
+    }
+
+    struct HelloWorldImpl;
+
+    impl GhostControlHandler for HelloWorldImpl {}
+
+    impl GhostHandler<HelloWorldActor> for HelloWorldImpl {}
+
+    impl HelloWorldActorHandler for HelloWorldImpl {
+        fn handle_hello_world(
+            &mut self,
+        ) -> HelloWorldActorHandlerResult<String> {
+            Ok(must_future::MustBoxFuture::new(async move {
+                Ok("hello world!".to_string())
+            }))
+        }
+    }
+
+    impl HelloWorldImpl {
+        pub async fn spawn() -> GhostSender<HelloWorldActor> {
+            let builder = actor_builder::GhostActorBuilder::new();
+            let sender = builder
+                .channel_factory()
+                .create_channel::<HelloWorldActor>()
+                .await
+                .unwrap();
+            tokio::task::spawn(builder.spawn(HelloWorldImpl));
+            sender
+        }
+    }
+
+    #[tokio::test]
+    async fn hello_world_example() {
+        let hello_world = HelloWorldImpl::spawn().await;
+        assert_eq!("hello world!", &hello_world.hello_world().await.unwrap());
+    }
+}
+
+#[cfg(test)]
 mod tests {
     use crate::*;
     use must_future::*;
@@ -21,17 +67,17 @@ mod tests {
         }
     }
 
-    ghost_event! {
+    ghost_actor! {
         /// custom chan
-        pub ghost_event MyInternalChan<MyError> {
+        pub actor MyInternalChan<MyError> {
             /// will respond with 'echo: input'.
             fn test_msg(input: String) -> String;
         }
     }
 
-    ghost_event! {
+    ghost_actor! {
         /// this is my custom actor doc
-        pub ghost_event MyActor<MyError> {
+        pub actor MyActor<MyError> {
             /// A test message, sends a String, receives a String.
             fn test_message(input: String) -> String;
 

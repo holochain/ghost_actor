@@ -1,7 +1,7 @@
-/// The `ghost_event!` macro generates an enum and helper types that make it
+/// The `ghost_actor!` macro generates an enum and helper types that make it
 /// easy to make inline async requests and await responses.
 #[macro_export]
-macro_rules! ghost_event {
+macro_rules! ghost_actor {
     // using @inner_ self references so we don't have to export / pollute
     // a bunch of sub macros.
 
@@ -10,14 +10,14 @@ macro_rules! ghost_event {
 
     (   @inner_tx
         $(#[$ameta:meta])*
-        ($($avis:tt)*) ghost_event $aname:ident<$aerr:ty> {
+        ($($avis:tt)*) actor $aname:ident<$aerr:ty> {
             $(
                 $(#[$rmeta:meta])* fn $rname:ident ( $($pname:ident: $pty:ty),* $(,)? ) -> $rret:ty;
             )*
         }
     ) => {
         $crate::dependencies::paste::item! {
-            $crate::ghost_event! { @inner
+            $crate::ghost_actor! { @inner
                 ($($ameta)*) ($($avis)*) $aname $aerr [$(
                     ($($rmeta)*) $rname [< $rname:camel >] $rret [$(
                         $pname $pty
@@ -48,21 +48,21 @@ macro_rules! ghost_event {
             $($avis)* type [< $aname HandlerResult >] <T> = ::std::result::Result<[< $aname Future >] <T>, $aerr>;
         }
 
-        $crate::ghost_event! { @inner_protocol
+        $crate::ghost_actor! { @inner_protocol
             ($($ameta)*) ($($avis)*) $aname $aerr [$(
                 ($($rmeta)*) $rname $rnamec $rret [$(
                     $pname $pty
                 )*]
             )*]
         }
-        $crate::ghost_event! { @inner_send_trait
+        $crate::ghost_actor! { @inner_send_trait
             ($($ameta)*) ($($avis)*) $aname $aerr [$(
                 ($($rmeta)*) $rname $rnamec $rret [$(
                     $pname $pty
                 )*]
             )*]
         }
-        $crate::ghost_event! { @inner_handler_trait
+        $crate::ghost_actor! { @inner_handler_trait
             ($($ameta)*) ($($avis)*) $aname $aerr [$(
                 ($($rmeta)*) $rname $rnamec $rret [$(
                     $pname $pty
@@ -207,28 +207,28 @@ macro_rules! ghost_event {
 
     // specialized pub visibility
     (
-        $(#[$ameta:meta])* pub ( $($avis:tt)* ) ghost_event $($rest:tt)*
+        $(#[$ameta:meta])* pub ( $($avis:tt)* ) actor $($rest:tt)*
     ) => {
-        $crate::ghost_event! { @inner_tx
-            $(#[$ameta])* (pub($($avis)*)) ghost_event $($rest)*
+        $crate::ghost_actor! { @inner_tx
+            $(#[$ameta])* (pub($($avis)*)) actor $($rest)*
         }
     };
 
     // generic pub visibility
     (
-        $(#[$ameta:meta])* pub ghost_event $($rest:tt)*
+        $(#[$ameta:meta])* pub actor $($rest:tt)*
     ) => {
-        $crate::ghost_event! { @inner_tx
-            $(#[$ameta])* (pub) ghost_event $($rest)*
+        $crate::ghost_actor! { @inner_tx
+            $(#[$ameta])* (pub) actor $($rest)*
         }
     };
 
     // private visibility
     (
-        $(#[$ameta:meta])* ghost_event $($rest:tt)*
+        $(#[$ameta:meta])* actor $($rest:tt)*
     ) => {
-        $crate::ghost_event! { @inner_tx
-            $(#[$ameta])* () ghost_event $($rest)*
+        $crate::ghost_actor! { @inner_tx
+            $(#[$ameta])* () actor $($rest)*
         }
     };
 }

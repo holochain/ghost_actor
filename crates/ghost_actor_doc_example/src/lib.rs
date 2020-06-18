@@ -8,7 +8,7 @@ pub enum MyError {
     GhostError(#[from] crate::GhostError),
 }
 
-crate::ghost_event! {
+crate::ghost_actor! {
     /// Test multi-line doc on actor type.
     ///
     /// # Example
@@ -17,7 +17,7 @@ crate::ghost_event! {
     /// // we can even run doc-tests
     /// assert_eq!(true, true);
     /// ```
-    pub ghost_event MyActor<MyError> {
+    pub actor MyActor<MyError> {
         /// this function has no inputs or outputs -- not all that useful
         fn no_input_no_output() -> ();
 

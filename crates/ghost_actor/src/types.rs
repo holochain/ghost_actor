@@ -139,7 +139,22 @@ pub trait GhostChannelSender<E: GhostEvent>:
 {
     /// Forward a GhostEvent along this channel.
     fn ghost_actor_channel_send(&self, event: E) -> GhostFuture<()>;
+}
 
+impl<E: GhostEvent> GhostChannelSender<E>
+    for futures::channel::mpsc::Sender<E>
+{
+    fn ghost_actor_channel_send(&self, event: E) -> GhostFuture<()> {
+        let mut sender = self.clone();
+        ::must_future::MustBoxFuture::new(async move {
+            futures::sink::SinkExt::send(&mut sender, event).await?;
+            Ok(())
+        })
+    }
+}
+
+/// A full sender that can control the actor side of the channel.
+pub trait GhostControlSender<E: GhostEvent>: GhostChannelSender<E> {
     /// Shutdown the actor once all pending messages have been processed.
     /// Future completes when the actor is shutdown.
     fn ghost_actor_shutdown(&self) -> GhostFuture<()>;
@@ -193,13 +208,11 @@ impl<E: GhostEvent> ::std::hash::Hash for GhostSender<E> {
 
 impl<E: GhostEvent> GhostChannelSender<E> for GhostSender<E> {
     fn ghost_actor_channel_send(&self, event: E) -> GhostFuture<()> {
-        let mut sender = self.0.clone();
-        ::must_future::MustBoxFuture::new(async move {
-            futures::sink::SinkExt::send(&mut sender, event).await?;
-            Ok(())
-        })
+        self.0.ghost_actor_channel_send(event)
     }
+}
 
+impl<E: GhostEvent> GhostControlSender<E> for GhostSender<E> {
     fn ghost_actor_shutdown(&self) -> GhostFuture<()> {
         self.1.ghost_actor_shutdown()
     }
