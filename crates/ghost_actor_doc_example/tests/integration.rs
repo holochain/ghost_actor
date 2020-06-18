@@ -8,14 +8,14 @@ mod my_mod {
         GhostError(#[from] ghost_actor::GhostError),
     }
 
-    ghost_actor::ghost_chan! {
-        pub chan MyChan<MyError> {
+    ghost_actor::ghost_event! {
+        pub ghost_event MyChan<MyError> {
             fn my_fn(input: i32) -> i32;
         }
     }
 
-    ghost_actor::ghost_actor! {
-        pub actor MyActor<MyError> {
+    ghost_actor::ghost_event! {
+        pub ghost_event MyActor<MyError> {
             fn my_fn(input: i32) -> i32;
             fn my_inner(input: i32) -> i32;
         }
@@ -24,22 +24,31 @@ mod my_mod {
 
 mod my_impl {
     pub struct MyImpl {
-        i_s: super::my_mod::MyActorInternalSender<super::my_mod::MyChan>,
+        i_s: ghost_actor::GhostSender<super::my_mod::MyChan>,
     }
 
     impl MyImpl {
-        pub async fn spawn() -> super::my_mod::MyActorSender {
-            let (sender, driver) =
-                super::my_mod::MyActorSender::ghost_actor_spawn(|i_s| {
-                    use ghost_actor::dependencies::futures::future::FutureExt;
-                    async move { Ok(MyImpl { i_s }) }.boxed().into()
-                })
+        pub async fn spawn() -> ghost_actor::GhostSender<super::my_mod::MyActor>
+        {
+            let builder = ghost_actor::actor_builder::GhostActorBuilder::new();
+            let sender = builder
+                .channel_factory()
+                .create_channel::<super::my_mod::MyActor>()
                 .await
                 .unwrap();
-            tokio::task::spawn(driver);
+            let i_s = builder
+                .channel_factory()
+                .create_channel::<super::my_mod::MyChan>()
+                .await
+                .unwrap();
+            tokio::task::spawn(builder.spawn(MyImpl { i_s }));
             sender
         }
     }
+
+    impl ghost_actor::GhostControlHandler for MyImpl {}
+
+    impl ghost_actor::GhostHandler<super::my_mod::MyChan> for MyImpl {}
 
     impl super::my_mod::MyChanHandler for MyImpl {
         fn handle_my_fn(
@@ -52,12 +61,9 @@ mod my_impl {
         }
     }
 
-    impl
-        super::my_mod::MyActorHandler<
-            super::my_mod::MyChan,
-            super::my_mod::MyChan,
-        > for MyImpl
-    {
+    impl ghost_actor::GhostHandler<super::my_mod::MyActor> for MyImpl {}
+
+    impl super::my_mod::MyActorHandler for MyImpl {
         fn handle_my_fn(
             &mut self,
             input: i32,
@@ -71,47 +77,23 @@ mod my_impl {
             &mut self,
             input: i32,
         ) -> super::my_mod::MyActorHandlerResult<i32> {
-            let mut i_s = self.i_s.clone();
+            let i_s = self.i_s.clone();
             Ok(ghost_actor::dependencies::must_future::MustBoxFuture::new(
                 async move {
-                    use super::my_mod::MyChanSend;
-                    i_s.ghost_actor_internal().my_fn(input).await
+                    use super::my_mod::MyChanSender;
+                    i_s.my_fn(input).await
                 },
             ))
-        }
-
-        fn handle_ghost_actor_internal(
-            &mut self,
-            input: super::my_mod::MyChan,
-        ) -> super::my_mod::MyActorResult<()> {
-            tokio::task::spawn(input.dispatch(self));
-            Ok(())
-        }
-
-        fn handle_ghost_actor_custom(
-            &mut self,
-            input: super::my_mod::MyChan,
-        ) -> super::my_mod::MyActorResult<()> {
-            tokio::task::spawn(input.dispatch(self));
-            Ok(())
         }
     }
 }
 
 #[tokio::test(threaded_scheduler)]
 async fn test_ghost_actor_integration() {
-    let mut sender = my_impl::MyImpl::spawn().await;
+    let sender = my_impl::MyImpl::spawn().await;
+
+    use my_mod::MyActorSender;
 
     assert_eq!(43, sender.my_fn(42).await.unwrap());
     assert_eq!(43, sender.my_inner(42).await.unwrap());
-
-    use my_mod::MyChanSend;
-    assert_eq!(
-        43,
-        sender
-            .ghost_actor_custom::<my_mod::MyChan>()
-            .my_fn(42)
-            .await
-            .unwrap()
-    );
 }

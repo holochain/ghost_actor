@@ -127,7 +127,7 @@ pub trait GhostHandler<D: GhostDispatch<Self>>: 'static + Send + Sized {
 pub trait GhostControlHandler: 'static + Send {
     /// Called when the actor task loops ends.
     /// Allows for any needed cleanup / triggers.
-    fn ghost_actor_shutdown(&mut self) {
+    fn handle_ghost_actor_shutdown(&mut self) {
         // default no-op
     }
 }

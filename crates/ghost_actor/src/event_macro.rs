@@ -10,7 +10,7 @@ macro_rules! ghost_event {
 
     (   @inner_tx
         $(#[$ameta:meta])*
-        ($($avis:tt)*) event $aname:ident<$aerr:ty> {
+        ($($avis:tt)*) ghost_event $aname:ident<$aerr:ty> {
             $(
                 $(#[$rmeta:meta])* fn $rname:ident ( $($pname:ident: $pty:ty),* $(,)? ) -> $rret:ty;
             )*
@@ -207,28 +207,28 @@ macro_rules! ghost_event {
 
     // specialized pub visibility
     (
-        $(#[$ameta:meta])* pub ( $($avis:tt)* ) event $($rest:tt)*
+        $(#[$ameta:meta])* pub ( $($avis:tt)* ) ghost_event $($rest:tt)*
     ) => {
         $crate::ghost_event! { @inner_tx
-            $(#[$ameta])* (pub($($avis)*)) event $($rest)*
+            $(#[$ameta])* (pub($($avis)*)) ghost_event $($rest)*
         }
     };
 
     // generic pub visibility
     (
-        $(#[$ameta:meta])* pub event $($rest:tt)*
+        $(#[$ameta:meta])* pub ghost_event $($rest:tt)*
     ) => {
         $crate::ghost_event! { @inner_tx
-            $(#[$ameta])* (pub) event $($rest)*
+            $(#[$ameta])* (pub) ghost_event $($rest)*
         }
     };
 
     // private visibility
     (
-        $(#[$ameta:meta])* event $($rest:tt)*
+        $(#[$ameta:meta])* ghost_event $($rest:tt)*
     ) => {
         $crate::ghost_event! { @inner_tx
-            $(#[$ameta])* () event $($rest)*
+            $(#[$ameta])* () ghost_event $($rest)*
         }
     };
 }
