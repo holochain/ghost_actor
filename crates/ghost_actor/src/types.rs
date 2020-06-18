@@ -122,6 +122,16 @@ pub trait GhostHandler<D: GhostDispatch<Self>>: 'static + Send + Sized {
     }
 }
 
+/// All handlers must implement these generic control callbacks.
+/// Many of the functions within are provided as no-ops that can be overridden.
+pub trait GhostControlHandler: 'static + Send {
+    /// Called when the actor task loops ends.
+    /// Allows for any needed cleanup / triggers.
+    fn ghost_actor_shutdown(&mut self) {
+        // default no-op
+    }
+}
+
 /// Indicates an item is the Sender side of a channel that can
 /// forward/handle GhostEvents.
 pub trait GhostChannelSender<E: GhostEvent>:
@@ -139,13 +149,6 @@ pub trait GhostChannelSender<E: GhostEvent>:
 
     /// Returns true if the receiving actor is still running.
     fn ghost_actor_active(&self) -> bool;
-}
-
-/// Indicates an item is the Receiver side of a channel that can
-/// forward/handle GhostEvents.
-pub trait GhostChannelReceiver<E: GhostEvent>:
-    'static + Send + Sized + ::futures::stream::Stream<Item = E>
-{
 }
 
 /// A provided GhostSender (impl GhostChannelSender) implementation.
@@ -210,8 +213,17 @@ impl<E: GhostEvent> GhostChannelSender<E> for GhostSender<E> {
     }
 }
 
-/// A provided GhostReceiver (impl GhostChannelReceiver) implementation.
-pub struct GhostReceiver<E: GhostEvent>(
+// -- private -- //
+
+/// Indicates an item is the Receiver side of a channel that can
+/// forward/handle GhostEvents.
+pub(crate) trait GhostChannelReceiver<E: GhostEvent>:
+    'static + Send + Sized + ::futures::stream::Stream<Item = E>
+{
+}
+
+/// internal GhostReceiver (impl GhostChannelReceiver) implementation.
+pub(crate) struct GhostReceiver<E: GhostEvent>(
     Box<::futures::channel::mpsc::Receiver<E>>,
 );
 

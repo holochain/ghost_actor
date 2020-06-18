@@ -29,6 +29,7 @@ mod tests {
 
     struct MyEventImpl;
 
+    impl GhostControlHandler for MyEventImpl {}
     impl GhostHandler<MyEvent> for MyEventImpl {}
 
     impl MyEventHandler for MyEventImpl {
