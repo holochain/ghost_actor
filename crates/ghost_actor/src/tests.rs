@@ -267,12 +267,7 @@ mod tests {
         sender.ghost_actor_shutdown().await.unwrap();
 
         let res = format!("{:?}", sender.add_one(42).await);
-        if &res
-            != "Err(GhostError(SendError(SendError { kind: Disconnected })))"
-            && &res != "Err(GhostError(ResponseError(Canceled)))"
-        {
-            panic!("expected send error");
-        }
+        assert_eq!("Err(GhostError(Disconnected))", res);
 
         assert!(did_shutdown.load(std::sync::atomic::Ordering::SeqCst));
     }
@@ -286,12 +281,7 @@ mod tests {
         sender.funky_stop().await.unwrap();
 
         let res = format!("{:?}", sender.add_one(42).await);
-        if &res
-            != "Err(GhostError(SendError(SendError { kind: Disconnected })))"
-            && &res != "Err(GhostError(ResponseError(Canceled)))"
-        {
-            panic!("expected send error");
-        }
+        assert_eq!("Err(GhostError(Disconnected))", res);
 
         assert!(did_shutdown.load(std::sync::atomic::Ordering::SeqCst));
     }

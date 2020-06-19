@@ -2,17 +2,9 @@
 #[derive(Debug, thiserror::Error)]
 #[non_exhaustive]
 pub enum GhostError {
-    /// Failed to send on channel.
-    #[error(transparent)]
-    SendError(#[from] futures::channel::mpsc::SendError),
-
-    /// Error sending response.
-    #[error(transparent)]
-    ResponseError(#[from] futures::channel::oneshot::Canceled),
-
-    /// Invalid custom type error.
-    #[error("InvalidCustomType")]
-    InvalidCustomType,
+    /// GhostActorDisconnected
+    #[error("GhostActorDisconnected")]
+    Disconnected,
 
     /// Unspecified GhostActor error.
     #[error(transparent)]
@@ -25,6 +17,18 @@ impl GhostError {
         e: impl Into<Box<dyn std::error::Error + Send + Sync>>,
     ) -> Self {
         GhostError::Other(e.into())
+    }
+}
+
+impl From<futures::channel::mpsc::SendError> for GhostError {
+    fn from(_: futures::channel::mpsc::SendError) -> Self {
+        Self::Disconnected
+    }
+}
+
+impl From<futures::channel::oneshot::Canceled> for GhostError {
+    fn from(_: futures::channel::oneshot::Canceled) -> Self {
+        Self::Disconnected
     }
 }
 
@@ -226,14 +230,19 @@ impl<E: GhostEvent> GhostControlSender<E> for GhostSender<E> {
     }
 }
 
-// -- private -- //
-
 /// Indicates an item is the Receiver side of a channel that can
 /// forward/handle GhostEvents.
-pub(crate) trait GhostChannelReceiver<E: GhostEvent>:
+pub trait GhostChannelReceiver<E: GhostEvent>:
     'static + Send + Sized + ::futures::stream::Stream<Item = E>
 {
 }
+
+impl<E: GhostEvent> GhostChannelReceiver<E>
+    for ::futures::channel::mpsc::Receiver<E>
+{
+}
+
+// -- private -- //
 
 /// internal GhostReceiver (impl GhostChannelReceiver) implementation.
 pub(crate) struct GhostReceiver<E: GhostEvent>(
