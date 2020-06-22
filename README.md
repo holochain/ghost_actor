@@ -102,7 +102,7 @@ Pretty straight forward. We implement a couple required traits,
 then our "Handler" trait that actually defines the logic of our actor.
 Then, we're ready to spawn it!
 
-### Spawning an actor
+### Spawning an Actor
 
 ```rust
 impl HelloWorldImpl {
@@ -199,3 +199,32 @@ async fn main() {
     assert_eq!("hello world!", &sender.hello_world().await.unwrap());
 }
 ```
+
+### Efficiency! - Ghost Actor's Synchronous Handler Blocks
+
+GhostActor handler traits are carefully costructed to allow `&'a mut self`
+access to the handler item, but return a `'static` future. That `'static`
+means references to the handler item cannot be captured in any async code.
+
+This can be frustrating for new users, but serves a specific purpose!
+
+We are being good rust futures authors and working around any blocking
+code in the manner our executor frameworks recommend, so our actor
+handler can process messages at lightning speed!
+
+Our actor doesn't have to context switch, because it has all its mutable
+internal state right here in this thread handling all these messages. And,
+when it's done with one message, it moves right onto the next without
+interuption. When the message queue is drained it schedules a wakeup for
+when there is more data to process.
+
+In writing our code to support this pattern, we find that our code natually
+tends toward patterns that support parallel work being done to make better
+use of modern multi-core processors.
+
+See especially the "Internal Sender Pattern" in the next section below.
+
+### Advanced Patterns for Working with Ghost Actors
+
+- [Internal Sender Pattern](https://github.com/holochain/ghost_actor/blob/master/crates/ghost_actor/examples/pattern_internal_sender.rs) -
+  Facilitates undertaking async work in GhostActor handler functions.
