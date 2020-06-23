@@ -2,6 +2,7 @@
 
 ## 0.2.0
 
+- [#26](https://github.com/holochain/ghost_actor/pull/26) - event publish/subscribe pattern example
 - [#25](https://github.com/holochain/ghost_actor/pull/25) - doc filename typo
 - [#24](https://github.com/holochain/ghost_actor/pull/24) - internal sender pattern example and docs
 - [#23](https://github.com/holochain/ghost_actor/pull/23) - batch handler processing / shutdown fix / error cleanup / attach receiver

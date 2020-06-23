@@ -282,6 +282,9 @@
 //!
 //! - [Internal Sender Pattern](https://github.com/holochain/ghost_actor/blob/master/crates/ghost_actor/examples/pattern_internal_sender.rs) -
 //!   Facilitates undertaking async work in GhostActor handler functions.
+//! - [Event Publish/Subscribe Pattern](https://github.com/holochain/ghost_actor/blob/master/crates/ghost_actor/examples/pattern_event_pub_sub.rs) -
+//!   Facilitates an actor's ability to async emit notifications/requests,
+//!   and a "parent" actor being able to handle events from a child actor.
 
 /// Re-exported dependencies to help with macro references.
 pub mod dependencies {
