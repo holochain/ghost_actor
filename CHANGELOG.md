@@ -2,6 +2,7 @@
 
 ## 0.2.0
 
+- [#27](https://github.com/holochain/ghost_actor/pull/27) - clone channel factory pattern example
 - [#26](https://github.com/holochain/ghost_actor/pull/26) - event publish/subscribe pattern example
 - [#25](https://github.com/holochain/ghost_actor/pull/25) - doc filename typo
 - [#24](https://github.com/holochain/ghost_actor/pull/24) - internal sender pattern example and docs
