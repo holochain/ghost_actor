@@ -200,6 +200,29 @@ async fn main() {
 }
 ```
 
+### Custom Errors
+
+```rust
+#[derive(Debug, thiserror::Error)]
+pub enum MyError {
+    /// Custom error types MUST implement `From<GhostError>`
+    #[error(transparent)]
+    GhostError(#[from] GhostError),
+
+    /// Of course, you can also have your own variants as well
+    #[error("My Error Type")]
+    MyErrorType,
+}
+
+ghost_actor! {
+    /// The error type for actor apis is specified in the macro
+    /// as the single generic following the actor name:
+    pub actor MyActor<MyError> {
+        fn my_fn() -> ();
+    }
+}
+```
+
 ### Efficiency! - Ghost Actor's Synchronous Handler Blocks
 
 GhostActor handler traits are carefully costructed to allow `&'a mut self`
@@ -231,3 +254,6 @@ See especially the "Internal Sender Pattern" in the next section below.
 - [Event Publish/Subscribe Pattern](https://github.com/holochain/ghost_actor/blob/master/crates/ghost_actor/examples/pattern_event_pub_sub.rs) -
   Facilitates an actor's ability to async emit notifications/requests,
   and a "parent" actor being able to handle events from a child actor.
+- [Clone Channel Factory Pattern](https://github.com/holochain/ghost_actor/blob/master/crates/ghost_actor/examples/pattern_clone_channel_factory.rs) -
+  Facilitates an actor's ability to absorb additional channel
+  receivers post-spawn.
