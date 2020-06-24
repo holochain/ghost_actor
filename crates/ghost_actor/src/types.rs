@@ -167,7 +167,7 @@ pub trait GhostControlSender<E: GhostEvent>: GhostChannelSender<E> {
     fn ghost_actor_shutdown_immediate(&self) -> GhostFuture<()>;
 
     /// Returns true if the receiving actor is still running.
-    fn ghost_actor_active(&self) -> bool;
+    fn ghost_actor_is_active(&self) -> bool;
 }
 
 /// A provided GhostSender (impl GhostChannelSender) implementation.
@@ -225,8 +225,8 @@ impl<E: GhostEvent> GhostControlSender<E> for GhostSender<E> {
         self.1.ghost_actor_shutdown_immediate()
     }
 
-    fn ghost_actor_active(&self) -> bool {
-        self.1.ghost_actor_active()
+    fn ghost_actor_is_active(&self) -> bool {
+        self.1.ghost_actor_is_active()
     }
 }
 

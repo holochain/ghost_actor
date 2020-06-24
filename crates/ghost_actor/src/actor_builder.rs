@@ -9,56 +9,6 @@ use std::sync::Arc;
 
 const MPLEX_CHUNK_SIZE: usize = 4096;
 
-/// This struct controls how a running actor functions.
-/// If you wish to implement your own GhostChannelSender, you'll use this
-/// to control the actor at the receiving end.
-#[derive(Clone)]
-pub struct GhostActorControl {
-    interupt_send: futures::channel::mpsc::Sender<()>,
-    state: Arc<GhostActorState>,
-}
-
-impl GhostActorControl {
-    /// Internal constructed by GhostActorBuilder
-    pub(crate) fn new(
-        interupt_send: futures::channel::mpsc::Sender<()>,
-    ) -> Self {
-        Self {
-            interupt_send,
-            state: Arc::new(GhostActorState::new()),
-        }
-    }
-
-    /// Shutdown the actor once all pending messages have been processed.
-    /// Future completes when the actor is shutdown.
-    pub fn ghost_actor_shutdown(&self) -> GhostFuture<()> {
-        let shutdown_recv = self.state.push_shutdown_receiver();
-        self.state.set_pending_shutdown();
-        let mut i_send = self.interupt_send.clone();
-        must_future::MustBoxFuture::new(async move {
-            let _ = i_send.send(()).await;
-            let _ = shutdown_recv.await.await;
-            Ok(())
-        })
-    }
-
-    /// Shutdown the actor immediately. All pending tasks will error.
-    pub fn ghost_actor_shutdown_immediate(&self) -> GhostFuture<()> {
-        let mut i_send = self.interupt_send.clone();
-        let shutdown_fut = self.state.set_shutdown();
-        must_future::MustBoxFuture::new(async move {
-            let _ = i_send.send(()).await;
-            let _ = shutdown_fut.await;
-            Ok(())
-        })
-    }
-
-    /// Returns true if the receiving actor is still running.
-    pub fn ghost_actor_active(&self) -> bool {
-        self.state.get() == GhostActorStateType::Active
-    }
-}
-
 /// Allows attaching new GhostEvent channels to a GhostActor task.
 pub struct GhostActorChannelFactory<H: GhostControlHandler> {
     inject: InjectLock<H>,
@@ -271,6 +221,56 @@ impl<H: GhostControlHandler> GhostActorBuilder<H> {
 }
 
 // -- private -- //
+
+/// This struct controls how a running actor functions.
+/// If you wish to implement your own GhostChannelSender, you'll use this
+/// to control the actor at the receiving end.
+#[derive(Clone)]
+pub(crate) struct GhostActorControl {
+    interupt_send: futures::channel::mpsc::Sender<()>,
+    state: Arc<GhostActorState>,
+}
+
+impl GhostActorControl {
+    /// Internal constructed by GhostActorBuilder
+    pub(crate) fn new(
+        interupt_send: futures::channel::mpsc::Sender<()>,
+    ) -> Self {
+        Self {
+            interupt_send,
+            state: Arc::new(GhostActorState::new()),
+        }
+    }
+
+    /// Shutdown the actor once all pending messages have been processed.
+    /// Future completes when the actor is shutdown.
+    pub(crate) fn ghost_actor_shutdown(&self) -> GhostFuture<()> {
+        let shutdown_recv = self.state.push_shutdown_receiver();
+        self.state.set_pending_shutdown();
+        let mut i_send = self.interupt_send.clone();
+        must_future::MustBoxFuture::new(async move {
+            let _ = i_send.send(()).await;
+            let _ = shutdown_recv.await.await;
+            Ok(())
+        })
+    }
+
+    /// Shutdown the actor immediately. All pending tasks will error.
+    pub(crate) fn ghost_actor_shutdown_immediate(&self) -> GhostFuture<()> {
+        let mut i_send = self.interupt_send.clone();
+        let shutdown_fut = self.state.set_shutdown();
+        must_future::MustBoxFuture::new(async move {
+            let _ = i_send.send(()).await;
+            let _ = shutdown_fut.await;
+            Ok(())
+        })
+    }
+
+    /// Returns true if the receiving actor is still running.
+    pub(crate) fn ghost_actor_is_active(&self) -> bool {
+        self.state.get() == GhostActorStateType::Active
+    }
+}
 
 pub(crate) type GhostActorInject<H> = Box<dyn FnOnce(&mut H) + 'static + Send>;
 
