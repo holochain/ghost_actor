@@ -10,9 +10,9 @@ ghost_actor::ghost_chan! {
 
 pub type ConEventReceiver = futures::channel::mpsc::Receiver<ConEvent>;
 
-ghost_actor::ghost_actor! {
+ghost_actor::ghost_chan! {
     /// A connected mud client.
-    pub actor Con<MudError> {
+    pub chan Con<MudError> {
         fn prompt_set(p: Vec<u8>) -> ();
         fn write_raw(msg: Vec<u8>) -> ();
     }
@@ -20,7 +20,7 @@ ghost_actor::ghost_actor! {
 
 pub async fn spawn_con(
     socket: tokio::net::TcpStream,
-) -> (ConSender, ConEventReceiver) {
+) -> (ghost_actor::GhostSender<Con>, ConEventReceiver) {
     // open a channel for the read task
     let (mut rsend, rrecv) = futures::channel::mpsc::channel(10);
 
@@ -31,76 +31,71 @@ pub async fn spawn_con(
     // don't buffer until return
     write_half.write_all(&[0xff, 0xfb, 0x03]).await.unwrap();
 
-    // spawn the actor impl
-    let (sender, driver) = ConSender::ghost_actor_spawn(move |mut i_s| {
-        // spawn the write task
-        let write_sender = spawn_write_task(write_half);
+    let builder = ghost_actor::actor_builder::GhostActorBuilder::new();
 
-        let mut write_sender_clone = write_sender.clone();
+    let sender = builder
+        .channel_factory()
+        .create_channel::<Con>()
+        .await
+        .unwrap();
 
-        // spawn the read task
-        tokio::task::spawn(async move {
-            let mut cmd = Vec::with_capacity(20);
-            let mut wait_command = 0;
-            while let Ok(c) = read_half.read_u8().await {
-                if wait_command > 0 {
-                    // mid IAC command - ignore the rest
-                    wait_command -= 1;
-                    continue;
+    // spawn the write task
+    let write_sender = spawn_write_task(write_half);
+
+    let i_s = sender.clone();
+
+    // spawn the read task
+    let write_sender_clone = write_sender.clone();
+    tokio::task::spawn(async move {
+        let mut cmd = Vec::with_capacity(20);
+        let mut wait_command = 0;
+        while let Ok(c) = read_half.read_u8().await {
+            if wait_command > 0 {
+                // mid IAC command - ignore the rest
+                wait_command -= 1;
+                continue;
+            }
+            match c {
+                255 => {
+                    // IAC command - ignore the rest
+                    wait_command = 2;
                 }
-                match c {
-                    255 => {
-                        // IAC command - ignore the rest
-                        wait_command = 2;
-                    }
-                    27 | 3 | 4 => {
-                        let _ = ConEventSend::destroy(&mut rsend).await;
-                        let _ = write_sender_clone.destroy().await;
-                        i_s.ghost_actor_shutdown_immediate();
-                        return;
-                    }
-                    8 | 127 => {
-                        cmd.pop();
-                        write_sender_clone
-                            .buffer_set(cmd.clone())
-                            .await
-                            .unwrap();
-                    }
-                    10 | 13 => {
-                        write_sender_clone
-                            .buffer_set(Vec::with_capacity(0))
-                            .await
-                            .unwrap();
-                        if let Ok(s) = std::str::from_utf8(&cmd) {
-                            let s = s.trim();
-                            if s.len() > 0 {
-                                rsend
-                                    .user_command(s.to_string())
-                                    .await
-                                    .unwrap();
-                            }
+                27 | 3 | 4 => {
+                    let _ = ConEventSender::destroy(&mut rsend).await;
+                    let _ = write_sender_clone.destroy().await;
+                    use ghost_actor::GhostControlSender;
+                    i_s.ghost_actor_shutdown_immediate().await.unwrap();
+                    return;
+                }
+                8 | 127 => {
+                    cmd.pop();
+                    write_sender_clone.buffer_set(cmd.clone()).await.unwrap();
+                }
+                10 | 13 => {
+                    write_sender_clone
+                        .buffer_set(Vec::with_capacity(0))
+                        .await
+                        .unwrap();
+                    if let Ok(s) = std::str::from_utf8(&cmd) {
+                        let s = s.trim();
+                        if s.len() > 0 {
+                            rsend.user_command(s.to_string()).await.unwrap();
                         }
-                        cmd.clear();
                     }
-                    _ => {
-                        if cmd.len() < 60 && c >= 0x20 && c <= 0x7e {
-                            cmd.push(c);
-                            write_sender_clone
-                                .buffer_add_char(c)
-                                .await
-                                .unwrap();
-                        }
+                    cmd.clear();
+                }
+                _ => {
+                    if cmd.len() < 60 && c >= 0x20 && c <= 0x7e {
+                        cmd.push(c);
+                        write_sender_clone.buffer_add_char(c).await.unwrap();
                     }
                 }
             }
-        });
+        }
+    });
 
-        async move { Ok(ConImpl { write_sender }) }.must_box()
-    })
-    .await
-    .unwrap();
-
-    tokio::task::spawn(driver);
+    // spawn the actor impl
+    tokio::task::spawn(builder.spawn(ConImpl { write_sender }));
 
     (sender, rrecv)
 }
@@ -116,7 +111,7 @@ ghost_actor::ghost_chan! {
     }
 }
 
-type WriteControlSender = futures::channel::mpsc::Sender<WriteControl>;
+type WriteControlSend = futures::channel::mpsc::Sender<WriteControl>;
 
 const ERASE_LINE: &'static [u8] = &[
     13, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32,
@@ -128,7 +123,7 @@ const ERASE_LINE: &'static [u8] = &[
 
 fn spawn_write_task(
     mut write_half: tokio::net::tcp::OwnedWriteHalf,
-) -> WriteControlSender {
+) -> WriteControlSend {
     let (wc_send, mut wc_recv) = futures::channel::mpsc::channel(10);
 
     tokio::task::spawn(async move {
@@ -145,7 +140,7 @@ fn spawn_write_task(
                     write_half.write_all(&prompt).await.unwrap();
                     write_half.write_all(&line_buffer).await.unwrap();
                     // let our caller know we're done
-                    respond.respond(Ok(()));
+                    respond.respond(Ok(async move { Ok(()) }.must_box()));
                 }
                 WriteControl::BufferAddChar { respond, char_, .. } => {
                     // append the char to the line_buffer
@@ -153,7 +148,7 @@ fn spawn_write_task(
                     // output the char to the client
                     write_half.write_all(&[char_]).await.unwrap();
                     // let our caller know we're done
-                    respond.respond(Ok(()));
+                    respond.respond(Ok(async move { Ok(()) }.must_box()));
                 }
                 WriteControl::BufferSet {
                     respond, buffer, ..
@@ -166,7 +161,7 @@ fn spawn_write_task(
                     write_half.write_all(&prompt).await.unwrap();
                     write_half.write_all(&line_buffer).await.unwrap();
                     // let our caller know we're done
-                    respond.respond(Ok(()));
+                    respond.respond(Ok(async move { Ok(()) }.must_box()));
                 }
                 WriteControl::LineWrite { respond, line, .. } => {
                     // move to start of line
@@ -179,10 +174,10 @@ fn spawn_write_task(
                     write_half.write_all(&prompt).await.unwrap();
                     write_half.write_all(&line_buffer).await.unwrap();
                     // let our caller know we're done
-                    respond.respond(Ok(()));
+                    respond.respond(Ok(async move { Ok(()) }.must_box()));
                 }
                 WriteControl::Destroy { respond, .. } => {
-                    respond.respond(Ok(()));
+                    respond.respond(Ok(async move { Ok(()) }.must_box()));
                     return;
                 }
             }
@@ -193,12 +188,16 @@ fn spawn_write_task(
 }
 
 struct ConImpl {
-    write_sender: WriteControlSender,
+    write_sender: WriteControlSend,
 }
 
-impl ConHandler<(), ()> for ConImpl {
+impl ghost_actor::GhostControlHandler for ConImpl {}
+
+impl ghost_actor::GhostHandler<Con> for ConImpl {}
+
+impl ConHandler for ConImpl {
     fn handle_prompt_set(&mut self, p: Vec<u8>) -> ConHandlerResult<()> {
-        let mut write_sender = self.write_sender.clone();
+        let write_sender = self.write_sender.clone();
         Ok(async move {
             write_sender.prompt_set(p).await?;
             Ok(())
@@ -207,7 +206,7 @@ impl ConHandler<(), ()> for ConImpl {
     }
 
     fn handle_write_raw(&mut self, msg: Vec<u8>) -> ConHandlerResult<()> {
-        let mut write_sender = self.write_sender.clone();
+        let write_sender = self.write_sender.clone();
         Ok(async move {
             write_sender.line_write(msg).await?;
             Ok(())

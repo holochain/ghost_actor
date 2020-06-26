@@ -33,10 +33,13 @@ async fn main() {
     }
 }
 
-async fn socket_task(mut world: WorldSender, socket: tokio::net::TcpStream) {
+async fn socket_task(
+    world: ghost_actor::GhostSender<World>,
+    socket: tokio::net::TcpStream,
+) {
     let (c_send, c_recv) = spawn_con(socket).await;
 
-    let mut room = world.room_get((0, 0, 0)).await.unwrap();
+    let room = world.room_get((0, 0, 0)).await.unwrap();
 
     let entity = spawn_con_entity(world.clone(), c_send, c_recv).await;
 
