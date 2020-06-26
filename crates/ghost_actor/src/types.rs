@@ -128,11 +128,12 @@ pub trait GhostHandler<D: GhostDispatch<Self>>: 'static + Send + Sized {
 
 /// All handlers must implement these generic control callbacks.
 /// Many of the functions within are provided as no-ops that can be overridden.
-pub trait GhostControlHandler: 'static + Send {
+pub trait GhostControlHandler: 'static + Send + Sized {
     /// Called when the actor task loops ends.
     /// Allows for any needed cleanup / triggers.
-    fn handle_ghost_actor_shutdown(&mut self) {
+    fn handle_ghost_actor_shutdown(self) -> must_future::MustBoxFuture<'static, ()> {
         // default no-op
+        must_future::MustBoxFuture::new(async move {})
     }
 }
 

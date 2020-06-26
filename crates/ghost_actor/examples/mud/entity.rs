@@ -26,14 +26,6 @@ pub async fn spawn_con_entity(
         .await
         .unwrap();
 
-    /*
-    let i_s = builder
-        .channel_factory()
-        .create_channel::<EntityInner>()
-        .await
-        .unwrap();
-    */
-
     builder
         .channel_factory()
         .attach_receiver(c_recv)
@@ -42,10 +34,8 @@ pub async fn spawn_con_entity(
 
     tokio::task::spawn(builder.spawn(ConEntityImpl::new(
         sender.clone(),
-        //i_s,
         world,
         c_send,
-        //c_recv,
     )));
 
     sender
@@ -53,7 +43,6 @@ pub async fn spawn_con_entity(
 
 struct ConEntityImpl {
     external_sender: ghost_actor::GhostSender<Entity>,
-    //internal_sender: ghost_actor::GhostSender<EntityInner>,
     world: ghost_actor::GhostSender<World>,
     cur_room: RoomKey,
     c_send: ghost_actor::GhostSender<Con>,
@@ -62,25 +51,11 @@ struct ConEntityImpl {
 impl ConEntityImpl {
     pub fn new(
         external_sender: ghost_actor::GhostSender<Entity>,
-        //internal_sender: ghost_actor::GhostSender<EntityInner>,
         world: ghost_actor::GhostSender<World>,
         c_send: ghost_actor::GhostSender<Con>,
-        //mut c_recv: ConEventReceiver,
     ) -> Self {
-        /*
-        let mut i_s = internal_sender.clone();
-        tokio::task::spawn(async move {
-            while let Some(evt) = c_recv.next().await {
-                if let Err(_) = i_s.ghost_actor_internal().con_recv(evt).await {
-                    break;
-                }
-            }
-        });
-        */
-
         Self {
             external_sender,
-            //internal_sender,
             world,
             cur_room: (0, 0, 0),
             c_send,
@@ -88,7 +63,21 @@ impl ConEntityImpl {
     }
 }
 
-impl ghost_actor::GhostControlHandler for ConEntityImpl {}
+impl ghost_actor::GhostControlHandler for ConEntityImpl {
+    fn handle_ghost_actor_shutdown(self) -> must_future::MustBoxFuture<'static, ()> {
+        let ConEntityImpl {
+            external_sender,
+            world,
+            cur_room,
+            c_send,
+        } = self;
+        must_future::MustBoxFuture::new(async move {
+            let room = world.room_get(cur_room).await.unwrap();
+            let _ = room.entity_drop(external_sender).await;
+            let _ = c_send.ghost_actor_shutdown_immediate().await;
+        })
+    }
+}
 
 impl ghost_actor::GhostHandler<Entity> for ConEntityImpl {}
 
@@ -109,43 +98,7 @@ impl EntityHandler for ConEntityImpl {
         self.cur_room = room_key;
         Ok(async move { Ok(()) }.must_box())
     }
-
-    /*
-    fn handle_ghost_actor_internal(
-        &mut self,
-        input: EntityInner,
-    ) -> EntityResult<()> {
-        tokio::task::spawn(input.dispatch(self));
-        Ok(())
-    }
-    */
 }
-
-/*
-ghost_actor::ghost_chan! {
-    chan EntityInner<MudError> {
-        fn stub() -> ();
-        //fn con_recv(evt: ConEvent) -> ();
-    }
-}
-
-impl ghost_actor::GhostHandler<EntityInner> for ConEntityImpl {}
-
-impl EntityInnerHandler for ConEntityImpl {
-    fn handle_stub(&mut self) -> EntityInnerHandlerResult<()> {
-        Ok(async move { Ok(()) }.must_box())
-    }
-    /*
-    fn handle_con_recv(
-        &mut self,
-        evt: ConEvent,
-    ) -> EntityInnerHandlerResult<()> {
-        use futures::future::FutureExt;
-        Ok(evt.dispatch(self).map(|_| Ok(())).must_box())
-    }
-    */
-}
-*/
 
 impl ghost_actor::GhostHandler<ConEvent> for ConEntityImpl {}
 
@@ -154,16 +107,30 @@ impl ConEventHandler for ConEntityImpl {
         &mut self,
         cmd: String,
     ) -> ConEventHandlerResult<()> {
+        let x_s = self.external_sender.clone();
         let world = self.world.clone();
         let room_key = self.cur_room.clone();
         let c_send = self.c_send.clone();
         Ok(async move {
+            use UserCommand::*;
             match UserCommand::parse(&cmd) {
-                UserCommand::Say(s) => {
+                Help => {
+                    c_send.write_raw(UserCommand::help().as_bytes().to_vec()).await?;
+                }
+                Look => {
+                    c_send.write_raw(b"you look around the room".to_vec()).await?;
+                }
+                Say(s) => {
                     let room = world.room_get(room_key).await?;
                     room.say(format!("[user] says: '{}'", s)).await?;
                 }
-                UserCommand::Unknown(s) => {
+                Yell(s) => {
+                    //world.yell(format!("[user] yells: '{}'", s)).await?;
+                }
+                Quit => {
+                    x_s.ghost_actor_shutdown_immediate().await?;
+                }
+                Unknown(s) => {
                     c_send.write_raw(s.into_bytes()).await?;
                 }
             }
@@ -174,29 +141,54 @@ impl ConEventHandler for ConEntityImpl {
     }
 
     fn handle_destroy(&mut self) -> ConEventHandlerResult<()> {
-        let x_s = self.external_sender.clone();
-        let world = self.world.clone();
-        let room_key = self.cur_room.clone();
-        Ok(async move {
-            let room = world.room_get(room_key).await?;
-            room.entity_drop(x_s).await?;
-            Ok(())
-        }
-        .must_box())
+        use futures::future::TryFutureExt;
+        Ok(self
+           .external_sender
+           .ghost_actor_shutdown_immediate()
+           .map_err(|e|e.into())
+           .must_box()
+        )
     }
 }
 
 enum UserCommand {
+    Help,
+    Look,
     Say(String),
+    Yell(String),
+    Quit,
     Unknown(String),
 }
 
 impl UserCommand {
+    pub fn help() -> &'static str {
+"GhostActor Mud Example Commands:\r
+  help                    - list these commands\r
+  look                    - look around the room you are in\r
+  say                     - say something out in this room\r
+  yell                    - yell something everyone can hear\r
+  quit                    - leave the mud\r
+"
+}
+
     pub fn parse(u: &str) -> Self {
         match u.chars().next() {
+            Some('h') | Some('H') => {
+                UserCommand::Help
+            }
+            Some('l') | Some('L') => {
+                UserCommand::Look
+            }
             Some('s') | Some('S') => {
                 let idx = u.find(char::is_whitespace).unwrap_or(u.len());
                 UserCommand::Say(u[idx..].trim().to_string())
+            }
+            Some('y') | Some('Y') => {
+                let idx = u.find(char::is_whitespace).unwrap_or(u.len());
+                UserCommand::Yell(u[idx..].trim().to_string())
+            }
+            Some('q') | Some('Q') => {
+                UserCommand::Quit
             }
             _ => {
                 let idx = u.find(char::is_whitespace).unwrap_or(u.len());

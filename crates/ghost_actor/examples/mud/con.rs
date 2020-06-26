@@ -63,7 +63,6 @@ pub async fn spawn_con(
                 27 | 3 | 4 => {
                     let _ = ConEventSender::destroy(&mut rsend).await;
                     let _ = write_sender_clone.destroy().await;
-                    use ghost_actor::GhostControlSender;
                     i_s.ghost_actor_shutdown_immediate().await.unwrap();
                     return;
                 }
@@ -191,7 +190,16 @@ struct ConImpl {
     write_sender: WriteControlSend,
 }
 
-impl ghost_actor::GhostControlHandler for ConImpl {}
+impl ghost_actor::GhostControlHandler for ConImpl {
+    fn handle_ghost_actor_shutdown(self) -> must_future::MustBoxFuture<'static, ()> {
+        let ConImpl {
+            write_sender,
+        } = self;
+        must_future::MustBoxFuture::new(async move {
+            let _ = write_sender.destroy().await;
+        })
+    }
+}
 
 impl ghost_actor::GhostHandler<Con> for ConImpl {}
 

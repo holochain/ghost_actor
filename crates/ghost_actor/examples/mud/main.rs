@@ -1,4 +1,7 @@
-use ghost_actor::dependencies::must_future::*;
+use ghost_actor::{
+    GhostControlSender,
+    dependencies::must_future::*,
+};
 use tokio::{
     io::{AsyncReadExt, AsyncWriteExt},
     stream::StreamExt,
