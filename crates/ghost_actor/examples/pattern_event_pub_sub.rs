@@ -5,9 +5,9 @@
 
 use ghost_actor::*;
 
-ghost_actor! {
+ghost_chan! {
     /// An event emitted by a "TickActor".
-    pub actor TickEvent<GhostError> {
+    pub chan TickEvent<GhostError> {
         /// A "tick" event with a message.
         fn tick(message: String) -> ();
     }
@@ -16,9 +16,9 @@ ghost_actor! {
 /// Channel receiver for "TickEvent" messages.
 pub type TickEventReceiver = futures::channel::mpsc::Receiver<TickEvent>;
 
-ghost_actor! {
+ghost_chan! {
     /// An actor that emits "tick" events.
-    pub actor TickActor<GhostError> {
+    pub chan TickActor<GhostError> {
         /// Begin a new tick timer that will send a message every
         /// "interval_ms" milliseconds.
         fn start_tick(prefix: String, interval_ms: u64) -> ();

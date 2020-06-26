@@ -4,8 +4,8 @@
 mod hello_world {
     use crate::*;
 
-    ghost_actor! {
-        pub actor HelloWorldActor<GhostError> {
+    ghost_chan! {
+        pub chan HelloWorldActor<GhostError> {
             fn hello_world() -> String;
         }
     }
@@ -67,17 +67,17 @@ mod tests {
         }
     }
 
-    ghost_actor! {
+    ghost_chan! {
         /// custom chan
-        pub actor MyInternalChan<MyError> {
+        pub chan MyInternalChan<MyError> {
             /// will respond with 'echo: input'.
             fn test_msg(input: String) -> String;
         }
     }
 
-    ghost_actor! {
+    ghost_chan! {
         /// this is my custom actor doc
-        pub actor MyActor<MyError> {
+        pub chan MyActor<MyError> {
             /// A test message, sends a String, receives a String.
             fn test_message(input: String) -> String;
 
