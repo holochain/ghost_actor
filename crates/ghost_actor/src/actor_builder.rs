@@ -213,7 +213,7 @@ impl<H: GhostControlHandler> GhostActorBuilder<H> {
 
             // finally - invoke the shutdown handler
             //           allows actor to cleanup / do any final triggers
-            handler.handle_ghost_actor_shutdown();
+            handler.handle_ghost_actor_shutdown().await;
 
             Ok(())
         })
