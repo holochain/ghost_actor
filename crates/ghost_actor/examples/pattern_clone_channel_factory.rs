@@ -5,9 +5,9 @@
 
 use ghost_actor::*;
 
-ghost_actor! {
+ghost_chan! {
     /// A message stream
-    pub actor Message<GhostError> {
+    pub chan Message<GhostError> {
         /// Send a message.
         fn message(message: String) -> ();
     }
@@ -16,9 +16,9 @@ ghost_actor! {
 /// A message receiver type
 pub type MessageReceiver = futures::channel::mpsc::Receiver<Message>;
 
-ghost_actor! {
+ghost_chan! {
     /// A parent actor to show off absorbing receivers
-    pub actor Parent<GhostError> {
+    pub chan Parent<GhostError> {
         /// Start handling messages post-spawn
         fn attach_message_receiver(r: MessageReceiver) -> ();
     }

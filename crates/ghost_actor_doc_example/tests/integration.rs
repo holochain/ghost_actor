@@ -8,14 +8,14 @@ mod my_mod {
         GhostError(#[from] ghost_actor::GhostError),
     }
 
-    ghost_actor::ghost_actor! {
-        pub actor MyChan<MyError> {
+    ghost_actor::ghost_chan! {
+        pub chan MyChan<MyError> {
             fn my_fn(input: i32) -> i32;
         }
     }
 
-    ghost_actor::ghost_actor! {
-        pub actor MyActor<MyError> {
+    ghost_actor::ghost_chan! {
+        pub chan MyActor<MyError> {
             fn my_fn(input: i32) -> i32;
             fn my_inner(input: i32) -> i32;
         }

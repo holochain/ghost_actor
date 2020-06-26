@@ -11,9 +11,9 @@ pub struct Response {
     finish_index: u32,
 }
 
-ghost_actor! {
+ghost_chan! {
     /// Public Actor Api - This generates our "External" Sender.
-    pub actor MyActorApi<GhostError> {
+    pub chan MyActorApi<GhostError> {
         /// An API function to call.
         fn my_api() -> Response;
     }
@@ -45,9 +45,9 @@ pub async fn spawn_my_impl() -> GhostSender<MyActorApi> {
 
 // -- private -- //
 
-ghost_actor! {
+ghost_chan! {
     /// Internal Api - This generates our "Internal" Sender.
-    actor MyInternalApi<GhostError> {
+    chan MyInternalApi<GhostError> {
         /// Internal api function to call.
         fn finalize_api(start_index: u32) -> Response;
     }

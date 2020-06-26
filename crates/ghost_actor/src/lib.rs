@@ -12,8 +12,8 @@
 //! # use ghost_actor::*;
 //! // Most of the GhostActor magic happens in this macro.
 //! // Sender and Handler traits will be generated here.
-//! ghost_actor! {
-//!     pub actor HelloWorldActor<GhostError> {
+//! ghost_chan! {
+//!     pub chan HelloWorldApi<GhostError> {
 //!         fn hello_world() -> String;
 //!     }
 //! }
@@ -21,78 +21,79 @@
 //! // ... We'll skip implementing a handler for now ...
 //! # struct HelloWorldImpl;
 //! # impl GhostControlHandler for HelloWorldImpl {}
-//! # impl GhostHandler<HelloWorldActor> for HelloWorldImpl {}
-//! # impl HelloWorldActorHandler for HelloWorldImpl {
+//! # impl GhostHandler<HelloWorldApi> for HelloWorldImpl {}
+//! # impl HelloWorldApiHandler for HelloWorldImpl {
 //! #     fn handle_hello_world(
 //! #         &mut self,
-//! #     ) -> HelloWorldActorHandlerResult<String> {
+//! #     ) -> HelloWorldApiHandlerResult<String> {
 //! #         Ok(must_future::MustBoxFuture::new(async move {
 //! #             Ok("hello world!".to_string())
 //! #         }))
 //! #     }
 //! # }
-//! # impl HelloWorldImpl {
-//! #     pub async fn spawn() -> GhostSender<HelloWorldActor> {
-//! #         let builder = actor_builder::GhostActorBuilder::new();
-//! #         let sender = builder
-//! #             .channel_factory()
-//! #             .create_channel::<HelloWorldActor>()
-//! #             .await
-//! #             .unwrap();
-//! #         tokio::task::spawn(builder.spawn(HelloWorldImpl));
-//! #         sender
-//! #     }
+//! # pub async fn spawn_hello_world(
+//! # ) -> Result<GhostSender<HelloWorldApi>, GhostError> {
+//! #     let builder = actor_builder::GhostActorBuilder::new();
+//! #     let sender = builder
+//! #         .channel_factory()
+//! #         .create_channel::<HelloWorldApi>()
+//! #         .await?;
+//! #     tokio::task::spawn(builder.spawn(HelloWorldImpl));
+//! #     Ok(sender)
 //! # }
 //!
 //! #[tokio::main]
-//! async fn main() {
+//! async fn main() -> Result<(), GhostError> {
 //!     // spawn our actor, getting the actor sender.
-//!     let sender = HelloWorldImpl::spawn().await;
+//!     let sender = spawn_hello_world().await?;
 //!
 //!     // we can make async calls on the sender
-//!     assert_eq!("hello world!", &sender.hello_world().await.unwrap());
+//!     assert_eq!("hello world!", &sender.hello_world().await?);
+//!     println!("{}", sender.hello_world().await?);
+//!
+//!     Ok(())
 //! }
 //! ```
 //!
 //! What's going on Here?
 //!
-//! - The `ghost_actor!` macro writes some types and boilerplate for us.
+//! - The `ghost_chan!` macro writes some types and boilerplate for us.
 //! - We'll dig into implementing actor handlers below.
 //! - We are able to spawn an actor that runs as a futures task.
 //! - We can make async requests on that actor, and get results inline.
 //!
-//! ## The `ghost_actor!` Macro
+//! ## The `ghost_chan!` Macro
 //!
 //! ```rust
 //! # use ghost_actor::*;
-//! ghost_actor! {
-//!     pub actor HelloWorldActor<GhostError> {
+//! ghost_chan! {
+//!     pub chan HelloWorldApi<GhostError> {
 //!         fn hello_world() -> String;
 //!     }
 //! }
 //! # pub fn main() {}
 //! ```
 //!
-//! The `ghost_actor!` macro takes care of writing the boilerplate for using
+//! The `ghost_chan!` macro takes care of writing the boilerplate for using
 //! async functions to communicate with an "actor" running as a futures
 //! task. The tests/examples here use tokio for the task executor, but
 //! the GhostActorBuilder returns a driver future for the actor task that you
 //! can manage any way you'd like.
 //!
-//! The `ghost_actor!` macro generates some important types, many of which
+//! The `ghost_chan!` macro generates some important types, many of which
 //! are derived by pasting words on to the end of your actor name.
-//! We'll use the actor name `HelloWorldActor` from above as an example:
+//! We'll use the actor name `HelloWorldApi` from above as an example:
 //!
-//! - `HelloWorldActorSender` - The "Sender" trait generated for your actor
-//!   allows users with a `GhostSender<HelloWorldActor>` instance to make
+//! - `HelloWorldApiSender` - The "Sender" trait generated for your actor
+//!   allows users with a `GhostSender<HelloWorldApi>` instance to make
 //!   async calls. Basically, this "Sender" trait provides the API that
 //!   makes the whole actor system work.
-//! - `HelloWorldActorHandler` - This "Handler" trait is what allows you
+//! - `HelloWorldApiHandler` - This "Handler" trait is what allows you
 //!   to implement an actor task that can respond to requests sent by
 //!   the "Sender".
-//! - `HelloWorldActor` - You may have noticed above, the "Sender" instance
+//! - `HelloWorldApi` - You may have noticed above, the "Sender" instance
 //!   that users of your api will receive is typed as
-//!   `GhostSender<HelloWorldActor>`. The item that receives the name of your
+//!   `GhostSender<HelloWorldApi>`. The item that receives the name of your
 //!   actor without having anything pasted on to it is actually a `GhostEvent`
 //!   enum designed for carrying messages from your "Sender" to your
 //!   "Handler", and then delivering the result back to your API user.
@@ -101,28 +102,26 @@
 //!
 //! ```rust
 //! # use ghost_actor::*;
-//! # ghost_actor! {
-//! #     pub actor HelloWorldActor<GhostError> {
+//! # ghost_chan! {
+//! #     pub chan HelloWorldApi<GhostError> {
 //! #         fn hello_world() -> String;
 //! #     }
 //! # }
-//! // We need a struct to implement our handler upon.
+//! /// We need a struct to implement our handler upon.
 //! struct HelloWorldImpl;
 //!
-//! // All handlers must implement GhostControlHandler.
-//! // This provides a default no-op handle_ghost_actor_shutdown impl.
+//! /// All handlers must implement GhostControlHandler.
+//! /// This provides a default no-op handle_ghost_actor_shutdown impl.
 //! impl GhostControlHandler for HelloWorldImpl {}
 //!
-//! // Implement GhostHandler for your specific GhostEvent type.
-//! // Don't worry, the compiler will let you know if you forget this : )
-//! impl GhostHandler<HelloWorldActor> for HelloWorldImpl {}
+//! /// Implement GhostHandler for your specific GhostEvent type.
+//! /// Don't worry, the compiler will let you know if you forget this : )
+//! impl GhostHandler<HelloWorldApi> for HelloWorldImpl {}
 //!
-//! // Now implement your actual handler -
-//! // auto generated by the `ghost_event!` macro.
-//! impl HelloWorldActorHandler for HelloWorldImpl {
-//!     fn handle_hello_world(
-//!         &mut self,
-//!     ) -> HelloWorldActorHandlerResult<String> {
+//! /// Now implement your actual handler -
+//! /// auto generated by the `ghost_chan!` macro.
+//! impl HelloWorldApiHandler for HelloWorldImpl {
+//!     fn handle_hello_world(&mut self) -> HelloWorldApiHandlerResult<String> {
 //!         Ok(must_future::MustBoxFuture::new(async move {
 //!             // return our results
 //!             Ok("hello world!".to_string())
@@ -140,43 +139,41 @@
 //!
 //! ```rust
 //! # use ghost_actor::*;
-//! # ghost_actor! {
-//! #     pub actor HelloWorldActor<GhostError> {
+//! # ghost_chan! {
+//! #     pub chan HelloWorldApi<GhostError> {
 //! #         fn hello_world() -> String;
 //! #     }
 //! # }
 //! # struct HelloWorldImpl;
 //! # impl GhostControlHandler for HelloWorldImpl {}
-//! # impl GhostHandler<HelloWorldActor> for HelloWorldImpl {}
-//! # impl HelloWorldActorHandler for HelloWorldImpl {
+//! # impl GhostHandler<HelloWorldApi> for HelloWorldImpl {}
+//! # impl HelloWorldApiHandler for HelloWorldImpl {
 //! #     fn handle_hello_world(
 //! #         &mut self,
-//! #     ) -> HelloWorldActorHandlerResult<String> {
+//! #     ) -> HelloWorldApiHandlerResult<String> {
 //! #         Ok(must_future::MustBoxFuture::new(async move {
 //! #             Ok("hello world!".to_string())
 //! #         }))
 //! #     }
 //! # }
-//! impl HelloWorldImpl {
-//!     // Use the GhostActorBuilder to construct the actor task.
-//!     pub async fn spawn() -> GhostSender<HelloWorldActor> {
-//!         // first we need a builder
-//!         let builder = actor_builder::GhostActorBuilder::new();
+//! /// Use the GhostActorBuilder to construct the actor task.
+//! pub async fn spawn_hello_world(
+//! ) -> Result<GhostSender<HelloWorldApi>, GhostError> {
+//!     // first we need a builder
+//!     let builder = actor_builder::GhostActorBuilder::new();
 //!
-//!         // now let's register an event channel with this actor.
-//!         let sender = builder
-//!             .channel_factory()
-//!             .create_channel::<HelloWorldActor>()
-//!             .await
-//!             .unwrap();
+//!     // now let's register an event channel with this actor.
+//!     let sender = builder
+//!         .channel_factory()
+//!         .create_channel::<HelloWorldApi>()
+//!         .await?;
 //!
-//!         // actually spawn the actor driver task
-//!         // providing our implementation
-//!         tokio::task::spawn(builder.spawn(HelloWorldImpl));
+//!     // actually spawn the actor driver task
+//!     // providing our implementation
+//!     tokio::task::spawn(builder.spawn(HelloWorldImpl));
 //!
-//!         // return the sender that controls the actor
-//!         sender
-//!     }
+//!     // return the sender that controls the actor
+//!     Ok(sender)
 //! }
 //! # pub fn main() {}
 //! ```
@@ -188,73 +185,15 @@
 //!
 //! ## The Complete Hello World Example
 //!
-//! ```rust
-//! # use ghost_actor::*;
-//! // Most of the GhostActor magic happens in this macro.
-//! // Sender and Handler traits will be generated here.
-//! ghost_actor! {
-//!     pub actor HelloWorldActor<GhostError> {
-//!         fn hello_world() -> String;
-//!     }
-//! }
-//!
-//! // We need a struct to implement our handler upon.
-//! struct HelloWorldImpl;
-//!
-//! // All handlers must implement GhostControlHandler.
-//! // This provides a default no-op handle_ghost_actor_shutdown impl.
-//! impl GhostControlHandler for HelloWorldImpl {}
-//!
-//! // Implement GhostHandler for your specific GhostEvent type.
-//! // Don't worry, the compiler will let you know if you forget this : )
-//! impl GhostHandler<HelloWorldActor> for HelloWorldImpl {}
-//!
-//! // Now implement your actual handler -
-//! // auto generated by the `ghost_event!` macro.
-//! impl HelloWorldActorHandler for HelloWorldImpl {
-//!     fn handle_hello_world(
-//!         &mut self,
-//!     ) -> HelloWorldActorHandlerResult<String> {
-//!         Ok(must_future::MustBoxFuture::new(async move {
-//!             // return our results
-//!             Ok("hello world!".to_string())
-//!         }))
-//!     }
-//! }
-//!
-//! impl HelloWorldImpl {
-//!     // Use the GhostActorBuilder to construct the actor task.
-//!     pub async fn spawn() -> GhostSender<HelloWorldActor> {
-//!         // first we need a builder
-//!         let builder = actor_builder::GhostActorBuilder::new();
-//!
-//!         // now let's register an event channel with this actor.
-//!         let sender = builder
-//!             .channel_factory()
-//!             .create_channel::<HelloWorldActor>()
-//!             .await
-//!             .unwrap();
-//!
-//!         // actually spawn the actor driver task
-//!         // providing our implementation
-//!         tokio::task::spawn(builder.spawn(HelloWorldImpl));
-//!
-//!         // return the sender that controls the actor
-//!         sender
-//!     }
-//! }
-//!
-//! #[tokio::main]
-//! async fn main() {
-//!     // spawn our actor, getting the actor sender.
-//!     let sender = HelloWorldImpl::spawn().await;
-//!
-//!     // we can make async calls on the sender
-//!     assert_eq!("hello world!", &sender.hello_world().await.unwrap());
-//! }
-//! ```
+//! - [https://github.com/holochain/ghost_actor/blob/master/crates/ghost_actor/examples/hello_world.rs](https://github.com/holochain/ghost_actor/blob/master/crates/ghost_actor/examples/hello_world.rs)
 //!
 //! ## Custom Errors
+//!
+//! A single ghost channel / actor api will use a single error / result type.
+//! You can use the provided `ghost_actor::GhostError` type - or you can
+//! specify a custom error type.
+//!
+//! Your custom error type must support `From<GhostError>`.
 //!
 //! ```rust
 //! # use ghost_actor::*;
@@ -269,10 +208,10 @@
 //!     MyErrorType,
 //! }
 //!
-//! ghost_actor! {
+//! ghost_chan! {
 //!     /// The error type for actor apis is specified in the macro
 //!     /// as the single generic following the actor name:
-//!     pub actor MyActor<MyError> {
+//!     pub chan MyActor<MyError> {
 //!         fn my_fn() -> ();
 //!     }
 //! }
@@ -326,8 +265,8 @@ pub mod dependencies {
 mod types;
 pub use types::*;
 
-mod actor_macro;
-pub use actor_macro::*;
+mod chan_macro;
+pub use chan_macro::*;
 
 pub mod actor_builder;
 
