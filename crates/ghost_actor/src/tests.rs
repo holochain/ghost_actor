@@ -104,9 +104,12 @@ mod tests {
     /// All handlers must implement this trait.
     /// (provides the handle_ghost_actor_shutdown callback)
     impl GhostControlHandler for MyActorImpl {
-        fn handle_ghost_actor_shutdown(&mut self) {
+        fn handle_ghost_actor_shutdown(
+            self,
+        ) -> must_future::MustBoxFuture<'static, ()> {
             self.did_shutdown
                 .store(true, std::sync::atomic::Ordering::SeqCst);
+            must_future::MustBoxFuture::new(async move {})
         }
     }
 
