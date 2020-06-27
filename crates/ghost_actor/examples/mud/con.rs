@@ -13,7 +13,9 @@ pub type ConEventReceiver = futures::channel::mpsc::Receiver<ConEvent>;
 ghost_actor::ghost_chan! {
     /// A connected mud client.
     pub chan Con<MudError> {
+        /// set the prompt the user will see
         fn prompt_set(p: Vec<u8>) -> ();
+        /// write raw data to the terminal (prompt will be cleared first)
         fn write_raw(msg: Vec<u8>) -> ();
     }
 }
@@ -71,6 +73,8 @@ pub async fn spawn_con(
                     write_sender_clone.buffer_set(cmd.clone()).await.unwrap();
                 }
                 10 | 13 => {
+                    write_sender_clone.buffer_add_char(10).await.unwrap();
+                    write_sender_clone.buffer_add_char(13).await.unwrap();
                     write_sender_clone
                         .buffer_set(Vec::with_capacity(0))
                         .await
@@ -191,10 +195,10 @@ struct ConImpl {
 }
 
 impl ghost_actor::GhostControlHandler for ConImpl {
-    fn handle_ghost_actor_shutdown(self) -> must_future::MustBoxFuture<'static, ()> {
-        let ConImpl {
-            write_sender,
-        } = self;
+    fn handle_ghost_actor_shutdown(
+        self,
+    ) -> must_future::MustBoxFuture<'static, ()> {
+        let ConImpl { write_sender } = self;
         must_future::MustBoxFuture::new(async move {
             let _ = write_sender.destroy().await;
         })
@@ -205,20 +209,10 @@ impl ghost_actor::GhostHandler<Con> for ConImpl {}
 
 impl ConHandler for ConImpl {
     fn handle_prompt_set(&mut self, p: Vec<u8>) -> ConHandlerResult<()> {
-        let write_sender = self.write_sender.clone();
-        Ok(async move {
-            write_sender.prompt_set(p).await?;
-            Ok(())
-        }
-        .must_box())
+        Ok(self.write_sender.prompt_set(p))
     }
 
     fn handle_write_raw(&mut self, msg: Vec<u8>) -> ConHandlerResult<()> {
-        let write_sender = self.write_sender.clone();
-        Ok(async move {
-            write_sender.line_write(msg).await?;
-            Ok(())
-        }
-        .must_box())
+        Ok(self.write_sender.line_write(msg))
     }
 }

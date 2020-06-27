@@ -3,7 +3,7 @@ use std::collections::HashSet;
 
 pub type RoomKey = (i32, i32, i32);
 
-pub enum Dir {
+pub enum Direction {
     North,
     South,
     East,
@@ -12,18 +12,16 @@ pub enum Dir {
     Down,
 }
 
-impl Dir {
-    fn translate_room_key(&self, room_key: &RoomKey) -> RoomKey {
-        let x = room_key.0;
-        let y = room_key.1;
-        let z = room_key.2;
+impl Direction {
+    pub fn translate_room_key(&self, room_key: &RoomKey) -> RoomKey {
+        let (mut x, mut y, mut z) = room_key.clone();
         match self {
-            Self::North => y + 1,
-            Self::South => y - 1,
-            Self::East => x + 1,
-            Self::West => x - 1,
-            Self::Up => z + 1,
-            Self::Down => z - 1,
+            Self::North => y += 1,
+            Self::South => y -= 1,
+            Self::East => x += 1,
+            Self::West => x -= 1,
+            Self::Up => z += 1,
+            Self::Down => z -= 1,
         };
         (x, y, z)
     }
@@ -35,7 +33,7 @@ ghost_actor::ghost_chan! {
         fn room_key_get() -> RoomKey;
         fn room_name_set(name: String) -> ();
         fn room_name_get() -> String;
-        fn look(dir: Dir) -> String;
+        fn look() -> String;
         fn say(msg: String) -> ();
         fn entity_hold(entity: ghost_actor::GhostSender<Entity>) -> ();
         fn entity_drop(entity: ghost_actor::GhostSender<Entity>) -> ();
@@ -60,6 +58,7 @@ pub async fn spawn_room(
 }
 
 struct RoomImpl {
+    #[allow(dead_code)]
     world: ghost_actor::GhostSender<World>,
     room_key: RoomKey,
     name: String,
@@ -103,16 +102,9 @@ impl RoomHandler for RoomImpl {
         Ok(async move { Ok(name) }.must_box())
     }
 
-    fn handle_look(&mut self, dir: Dir) -> RoomHandlerResult<String> {
-        let look_room = dir.translate_room_key(&self.room_key);
-
-        let world = self.world.clone();
-        Ok(async move {
-            let look_room = world.room_get(look_room).await?;
-            let room_name = look_room.room_name_get().await?;
-            Ok(format!("You see {}", room_name))
-        }
-        .must_box())
+    fn handle_look(&mut self) -> RoomHandlerResult<String> {
+        let msg = format!("You are in [{}]. {:?}", self.name, self.room_key);
+        Ok(async move { Ok(msg) }.must_box())
     }
 
     fn handle_say(&mut self, msg: String) -> RoomHandlerResult<()> {

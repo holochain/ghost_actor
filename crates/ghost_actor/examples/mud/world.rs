@@ -5,6 +5,7 @@ ghost_actor::ghost_chan! {
     /// The top-level mud container - holds all rooms
     pub chan World<MudError> {
         fn room_get(room_key: RoomKey) -> ghost_actor::GhostSender<Room>;
+        fn yell(msg: String) -> ();
     }
 }
 
@@ -109,15 +110,22 @@ impl WorldHandler for WorldImpl {
         maybe_room.get_room_fut()
     }
 
-    /*
-    fn handle_ghost_actor_internal(
-        &mut self,
-        input: WorldInner,
-    ) -> WorldResult<()> {
-        tokio::task::spawn(input.dispatch(self));
-        Ok(())
+    fn handle_yell(&mut self, msg: String) -> WorldHandlerResult<()> {
+        let mut all: Vec<MustBoxFuture<'static, Result<(), MudError>>> =
+            Vec::new();
+        for (_, room) in self.rooms.iter_mut() {
+            let msg = msg.clone();
+            let fut = room.get_room_fut();
+            all.push(async move { Ok(fut?.await?.say(msg).await?) }.must_box());
+        }
+        Ok(async move {
+            for res in futures::future::join_all(all).await {
+                res?;
+            }
+            Ok(())
+        }
+        .must_box())
     }
-    */
 }
 
 ghost_actor::ghost_chan! {

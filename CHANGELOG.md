@@ -2,7 +2,8 @@
 
 ## 0.2.0
 
-- [#28](https://github.com/holochain/ghost_actor/pull/28) - `ghost_chan!` naming for macro, since it can be used for events too
+- [#31](https://github.com/holochain/ghost_actor/pull/31) - `handle_ghost_actor_shutdown` is now async
+- [#30](https://github.com/holochain/ghost_actor/pull/30) - `ghost_chan!` naming for macro, since it can be used for events too
 - [#27](https://github.com/holochain/ghost_actor/pull/27) - clone channel factory pattern example
 - [#26](https://github.com/holochain/ghost_actor/pull/26) - event publish/subscribe pattern example
 - [#25](https://github.com/holochain/ghost_actor/pull/25) - doc filename typo
