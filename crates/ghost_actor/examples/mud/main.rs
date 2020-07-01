@@ -24,7 +24,7 @@ async fn main() {
     let world = spawn_world().await;
 
     let mut listener =
-        tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        tokio::net::TcpListener::bind("0.0.0.0:0").await.unwrap();
     println!("telnet 127.0.0.1 {}", listener.local_addr().unwrap().port());
 
     while let Some(Ok(socket)) = listener.next().await {
