@@ -4,7 +4,8 @@ ghost_actor::ghost_chan! {
     /// An entity represents a user / npc / or item that can move around.
     pub chan Entity<MudError> {
         fn say(msg: String) -> ();
-        fn room_set(room_key: RoomKey) -> ();
+        fn room_set(room_key: RoomKey, room: ghost_actor::GhostSender<Room>) -> ();
+        fn entity_name_get() -> String;
     }
 }
 
@@ -43,12 +44,15 @@ You can type \"help\" and press enter for a list of commands.\r
         .await
         .unwrap();
 
-    tokio::task::spawn(builder.spawn(ConEntityImpl::new(
-        sender.clone(),
-        world,
-        c_send,
-        name,
-    )));
+    let room = world.room_get((0, 0, 0).into()).await.unwrap();
+
+    let mut i = ConEntityImpl::new(sender.clone(), world, room, c_send, name);
+    i.handle_user_command("look".to_string())
+        .unwrap()
+        .await
+        .unwrap();
+
+    tokio::task::spawn(builder.spawn(i));
 
     sender
 }
@@ -56,6 +60,7 @@ You can type \"help\" and press enter for a list of commands.\r
 struct ConEntityImpl {
     external_sender: ghost_actor::GhostSender<Entity>,
     world: ghost_actor::GhostSender<World>,
+    room: ghost_actor::GhostSender<Room>,
     cur_room: RoomKey,
     c_send: ghost_actor::GhostSender<Con>,
     name: String,
@@ -65,12 +70,14 @@ impl ConEntityImpl {
     pub fn new(
         external_sender: ghost_actor::GhostSender<Entity>,
         world: ghost_actor::GhostSender<World>,
+        room: ghost_actor::GhostSender<Room>,
         c_send: ghost_actor::GhostSender<Con>,
         name: String,
     ) -> Self {
         Self {
             external_sender,
             world,
+            room,
             cur_room: (0, 0, 0),
             c_send,
             name,
@@ -84,13 +91,11 @@ impl ghost_actor::GhostControlHandler for ConEntityImpl {
     ) -> must_future::MustBoxFuture<'static, ()> {
         let ConEntityImpl {
             external_sender,
-            world,
-            cur_room,
+            room,
             c_send,
             ..
         } = self;
         must_future::MustBoxFuture::new(async move {
-            let room = world.room_get(cur_room).await.unwrap();
             let _ = room.entity_drop(external_sender).await;
             let _ = c_send.ghost_actor_shutdown_immediate().await;
         })
@@ -112,9 +117,16 @@ impl EntityHandler for ConEntityImpl {
     fn handle_room_set(
         &mut self,
         room_key: RoomKey,
+        room: ghost_actor::GhostSender<Room>,
     ) -> EntityHandlerResult<()> {
         self.cur_room = room_key;
+        self.room = room;
         Ok(async move { Ok(()) }.must_box())
+    }
+
+    fn handle_entity_name_get(&mut self) -> EntityHandlerResult<String> {
+        let name = self.name.clone();
+        Ok(async move { Ok(name) }.must_box())
     }
 }
 
@@ -135,11 +147,9 @@ impl ConEventHandler for ConEntityImpl {
                 Ok(fut)
             }
             Look => {
-                let world = self.world.clone();
-                let room_key = self.cur_room.clone();
+                let room = self.room.clone();
                 let c_send = self.c_send.clone();
                 Ok(async move {
-                    let room = world.room_get(room_key).await?;
                     let look = room.look().await?;
                     c_send.write_raw(look.into_bytes()).await?;
                     Ok(())
@@ -147,11 +157,9 @@ impl ConEventHandler for ConEntityImpl {
                 .must_box())
             }
             Say(s) => {
-                let world = self.world.clone();
-                let room_key = self.cur_room.clone();
+                let room = self.room.clone();
                 let msg = format!("[{}] says: '{}'", self.name, s);
                 Ok(async move {
-                    let room = world.room_get(room_key).await?;
                     room.say(msg).await?;
                     Ok(())
                 }
@@ -169,11 +177,9 @@ impl ConEventHandler for ConEntityImpl {
                 Ok(fut)
             }
             RoomName(room_name) => {
-                let world = self.world.clone();
-                let room_key = self.cur_room.clone();
+                let room = self.room.clone();
                 let c_send = self.c_send.clone();
                 Ok(async move {
-                    let room = world.room_get(room_key).await?;
                     room.room_name_set(room_name).await?;
                     let look = room.look().await?;
                     c_send.write_raw(look.into_bytes()).await?;
@@ -181,15 +187,28 @@ impl ConEventHandler for ConEntityImpl {
                 }
                 .must_box())
             }
-            RoomExit(_d) => Ok(async move { Ok(()) }.must_box()),
+            RoomExit(dir) => {
+                let room = self.room.clone();
+                Ok(async move {
+                    room.room_exit_toggle(dir).await?;
+                    Ok(())
+                }
+                .must_box())
+            }
             Move(dir) => {
+                let old_room = self.room.clone();
                 let x_s = self.external_sender.clone();
                 let world = self.world.clone();
-                let old_room_key = self.cur_room.clone();
                 let new_room_key = dir.translate_room_key(&self.cur_room);
                 let c_send = self.c_send.clone();
                 Ok(async move {
-                    let old_room = world.room_get(old_room_key).await?;
+                    if !old_room.room_has_exit(dir).await? {
+                        c_send
+                            .write_raw(b"you cannot go that way".to_vec())
+                            .await?;
+                        return Ok(());
+                    }
+
                     let new_room = world.room_get(new_room_key).await?;
 
                     let f1 = new_room.entity_hold(x_s.clone());
@@ -263,7 +282,7 @@ GhostActor Mud Example Commands:\r
   yell /what to yell/     - yell something everyone can hear\r
   name /your new name/    - rename yourself\r
   room name /room name/   - rename this room\r
-  room exit /DIR/         - make an exit from this room in direction /DIR/\r
+  room exit /DIR/         - toggle an exit from this room in direction /DIR/\r
   move /DIR/              - move in direction /DIR/\r
   quit                    - disconnect / leave the mud\r
 

@@ -3,6 +3,7 @@ use std::collections::HashSet;
 
 pub type RoomKey = (i32, i32, i32);
 
+#[derive(Debug, Clone, Copy, Hash, PartialEq, Eq)]
 pub enum Direction {
     North,
     South,
@@ -33,6 +34,8 @@ ghost_actor::ghost_chan! {
         fn room_key_get() -> RoomKey;
         fn room_name_set(name: String) -> ();
         fn room_name_get() -> String;
+        fn room_exit_toggle(dir: Direction) -> ();
+        fn room_has_exit(dir: Direction) -> bool;
         fn look() -> String;
         fn say(msg: String) -> ();
         fn entity_hold(entity: ghost_actor::GhostSender<Entity>) -> ();
@@ -52,29 +55,38 @@ pub async fn spawn_room(
         .await
         .unwrap();
 
-    tokio::task::spawn(builder.spawn(RoomImpl::new(world, room_key)));
+    tokio::task::spawn(builder.spawn(RoomImpl::new(
+        sender.clone(),
+        world,
+        room_key,
+    )));
 
     sender
 }
 
 struct RoomImpl {
+    external_sender: ghost_actor::GhostSender<Room>,
     #[allow(dead_code)]
     world: ghost_actor::GhostSender<World>,
     room_key: RoomKey,
     name: String,
     entities: HashSet<ghost_actor::GhostSender<Entity>>,
+    exits: HashSet<Direction>,
 }
 
 impl RoomImpl {
     pub fn new(
+        external_sender: ghost_actor::GhostSender<Room>,
         world: ghost_actor::GhostSender<World>,
         room_key: RoomKey,
     ) -> Self {
         Self {
+            external_sender,
             world,
             room_key,
             name: "[no-name]".to_string(),
             entities: HashSet::new(),
+            exits: HashSet::new(),
         }
     }
 }
@@ -102,9 +114,46 @@ impl RoomHandler for RoomImpl {
         Ok(async move { Ok(name) }.must_box())
     }
 
+    fn handle_room_exit_toggle(
+        &mut self,
+        dir: Direction,
+    ) -> RoomHandlerResult<()> {
+        if self.exits.contains(&dir) {
+            self.exits.remove(&dir);
+        } else {
+            self.exits.insert(dir);
+        }
+        Ok(async move { Ok(()) }.must_box())
+    }
+    fn handle_room_has_exit(
+        &mut self,
+        dir: Direction,
+    ) -> RoomHandlerResult<bool> {
+        let result = self.exits.contains(&dir);
+        Ok(async move { Ok(result) }.must_box())
+    }
+
     fn handle_look(&mut self) -> RoomHandlerResult<String> {
-        let msg = format!("You are in [{}]. {:?}", self.name, self.room_key);
-        Ok(async move { Ok(msg) }.must_box())
+        let msg_loc =
+            format!("You are in [{}]. {:?}", self.name, self.room_key);
+
+        let exits = self.exits.iter().collect::<Vec<_>>();
+        let msg_exits = format!("Exits: {:?}", exits);
+
+        let entities = self.entities.iter().cloned().collect::<Vec<_>>();
+        Ok(async move {
+            let f = futures::future::join_all(
+                entities.into_iter().map(|e| e.entity_name_get()),
+            );
+            let msg = format!(
+                "{}\r\n{}\r\nWith: {:?}",
+                msg_loc,
+                msg_exits,
+                f.await.into_iter().map(|r| r.unwrap()).collect::<Vec<_>>(),
+            );
+            Ok(msg)
+        }
+        .must_box())
     }
 
     fn handle_say(&mut self, msg: String) -> RoomHandlerResult<()> {
@@ -123,10 +172,11 @@ impl RoomHandler for RoomImpl {
         entity: ghost_actor::GhostSender<Entity>,
     ) -> RoomHandlerResult<()> {
         self.entities.insert(entity.clone());
+        let room = self.external_sender.clone();
         let room_key = self.room_key.clone();
 
         Ok(async move {
-            entity.room_set(room_key).await?;
+            entity.room_set(room_key, room).await?;
             Ok(())
         }
         .must_box())

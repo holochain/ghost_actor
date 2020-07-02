@@ -23,6 +23,9 @@ use entity::*;
 async fn main() {
     let world = spawn_world().await;
 
+    // set up a basic world
+    starting_world(world.clone()).await;
+
     let mut listener =
         tokio::net::TcpListener::bind("0.0.0.0:0").await.unwrap();
     println!("telnet 127.0.0.1 {}", listener.local_addr().unwrap().port());
@@ -44,4 +47,35 @@ async fn socket_task(
     let entity = spawn_con_entity(world.clone(), c_send, c_recv).await;
 
     room.entity_hold(entity).await.unwrap();
+}
+
+async fn starting_world(world: ghost_actor::GhostSender<World>) {
+    let mut all = Vec::new();
+
+    let r = futures::future::join_all(vec![
+        world.room_get((0, 0, 0).into()),  // start
+        world.room_get((0, 0, -1).into()), // down one
+        world.room_get((0, 1, 0).into()),  // north one
+    ])
+    .await
+    .into_iter()
+    .map(|r| r.unwrap())
+    .collect::<Vec<_>>();
+
+    // starting room
+    all.push(r[0].room_name_set("Welcoming Courtyard".to_string()));
+    all.push(r[0].room_exit_toggle(Direction::North));
+    all.push(r[0].room_exit_toggle(Direction::Down));
+
+    // down one
+    all.push(r[1].room_name_set("A Dank Well".to_string()));
+    all.push(r[1].room_exit_toggle(Direction::Up));
+
+    // north one
+    all.push(r[2].room_name_set("A Forbidding Desert".to_string()));
+    all.push(r[2].room_exit_toggle(Direction::South));
+
+    for i in futures::future::join_all(all).await {
+        i.unwrap();
+    }
 }
