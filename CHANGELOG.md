@@ -1,5 +1,9 @@
 # ghost_actor changelog
 
+## 0.3.0
+
+-
+
 ## 0.2.0
 
 - [#31](https://github.com/holochain/ghost_actor/pull/31) - `handle_ghost_actor_shutdown` is now async
