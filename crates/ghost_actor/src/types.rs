@@ -87,9 +87,7 @@ impl<T: 'static + Send> GhostRespond<T> {
         // In a ghost channel, the only error you can get is that the sender
         // is no longer available to receive the response.
         // As a responder, we don't care.
-        let _ = self
-            .0
-            .send((t, tracing::Span::none()));
+        let _ = self.0.send((t, tracing::Span::none()));
     }
 
     /// For those who simply cannot stand typing `respond.respond()`,

@@ -1,8 +1,8 @@
 # ghost_actor changelog
 
-## 0.3.0
+## 0.2.1
 
--
+- [#35](https://github.com/holochain/ghost_actor/pull/35) - Tracing spans were erroneously crossing awaits, disabled until we find a better solution.
 
 ## 0.2.0
 
