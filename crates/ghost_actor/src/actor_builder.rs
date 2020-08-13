@@ -169,7 +169,7 @@ impl<H: GhostControlHandler> GhostActorBuilder<H> {
                 // Check if we have any new streams to inject.
                 let to_inject = inject.drain().await?;
                 if !to_inject.is_empty() {
-                    stream_multiplexer = Some(
+                    let mut stream_multiplexer = Some(
                         stream_multiplexer_chunks.take().unwrap().into_inner(),
                     );
                     for i in to_inject {
