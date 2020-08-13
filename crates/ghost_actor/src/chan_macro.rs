@@ -110,8 +110,7 @@ macro_rules! ghost_chan {
                 fn ghost_actor_dispatch(self, h: &mut H) {
                     match self {
                         $(
-                            $aname::$rnamec { span, respond, $($pname,)* } => {
-                                let _g = span.enter();
+                            $aname::$rnamec { span: _span, respond, $($pname,)* } => {
                                 respond.respond(h.[< handle_ $rname >]($($pname,)*));
                             }
                         )*
@@ -159,7 +158,7 @@ macro_rules! ghost_chan {
                     fn $rname(&self, $($pname: $pty),*) -> [< $aname Future >] <$rret> {
                         let (s, r) = $crate::dependencies::futures::channel::oneshot::channel();
                         let t = $aname::$rnamec {
-                            span: $crate::dependencies::tracing::debug_span!(stringify!($rname)),
+                            span: $crate::dependencies::tracing::Span::none(),
                             respond: $crate::GhostRespond::new(
                                 s,
                                 concat!(stringify!($rname), "_respond"),
@@ -169,8 +168,7 @@ macro_rules! ghost_chan {
                         let send_fut = self.ghost_actor_channel_send(t);
                         $crate::dependencies::must_future::MustBoxFuture::new(async move {
                             send_fut.await?;
-                            let (r, span) = r.await.map_err($crate::GhostError::from)?;
-                            let _g = span.enter();
+                            let (r, _span) = r.await.map_err($crate::GhostError::from)?;
                             r?.await
                         })
                     }
