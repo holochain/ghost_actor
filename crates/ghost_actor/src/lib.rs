@@ -260,6 +260,7 @@ pub mod dependencies {
     pub use paste;
     pub use thiserror;
     pub use tracing;
+    pub use tracing_futures;
 }
 
 mod types;
