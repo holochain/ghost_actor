@@ -89,7 +89,7 @@ impl<T: 'static + Send> GhostRespond<T> {
         // As a responder, we don't care.
         let _ = self
             .0
-            .send((t, tracing::debug_span!("respond", "{}", self.1)));
+            .send((t, tracing::Span::none()));
     }
 
     /// For those who simply cannot stand typing `respond.respond()`,
