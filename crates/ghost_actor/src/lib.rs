@@ -257,6 +257,7 @@
 pub mod dependencies {
     pub use futures;
     pub use must_future;
+    pub use observability;
     pub use paste;
     pub use thiserror;
     pub use tracing;

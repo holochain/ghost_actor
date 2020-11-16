@@ -69,14 +69,17 @@ pub type GhostActorDriver = ::must_future::MustBoxFuture<'static, ()>;
 /// Response callback for ghost request.
 #[must_use]
 pub struct GhostRespond<T: 'static + Send>(
-    ::futures::channel::oneshot::Sender<(T, ::tracing::Span)>,
+    ::futures::channel::oneshot::Sender<(T, ::observability::Context)>,
     &'static str,
 );
 
 impl<T: 'static + Send> GhostRespond<T> {
     #[doc(hidden)]
     pub fn new(
-        sender: ::futures::channel::oneshot::Sender<(T, ::tracing::Span)>,
+        sender: ::futures::channel::oneshot::Sender<(
+            T,
+            ::observability::Context,
+        )>,
         trace: &'static str,
     ) -> Self {
         Self(sender, trace)
@@ -84,10 +87,12 @@ impl<T: 'static + Send> GhostRespond<T> {
 
     /// Call this to respond to a ghost request.
     pub fn respond(self, t: T) {
+        use observability::OpenSpanExt;
         // In a ghost channel, the only error you can get is that the sender
         // is no longer available to receive the response.
         // As a responder, we don't care.
-        let _ = self.0.send((t, tracing::Span::none()));
+        let context = tracing::Span::get_current_context();
+        let _ = self.0.send((t, context));
     }
 
     /// For those who simply cannot stand typing `respond.respond()`,
