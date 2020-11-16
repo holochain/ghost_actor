@@ -13,6 +13,7 @@ repository = "https://github.com/holochain/ghost_actor"
 
 [dependencies]
 futures = "0.3"
+observability = { version = "0.1", optional = true }
 paste = "0.1.12"
 thiserror = "1"
 tracing = "0.1"
@@ -21,8 +22,7 @@ must_future = "0.1.2"
 
 [dev-dependencies]
 tokio = { version = "0.2", features = ["full"] }
-tracing-subscriber = "0.2"
 
 [features]
-default = []
+default = ["observability"]
 unstable = []

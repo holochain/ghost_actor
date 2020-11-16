@@ -196,17 +196,6 @@ mod tests {
         }
     }
 
-    fn init_tracing() {
-        let _ = tracing::subscriber::set_global_default(
-            tracing_subscriber::FmtSubscriber::builder()
-                .with_env_filter(
-                    tracing_subscriber::EnvFilter::from_default_env(),
-                )
-                .compact()
-                .finish(),
-        );
-    }
-
     #[tokio::test]
     async fn it_can_use_eq_on_senders() {
         let (sender_a1, _) = MyActorImpl::spawn().await.unwrap();
@@ -230,7 +219,7 @@ mod tests {
 
     #[tokio::test]
     async fn it_check_echo() {
-        init_tracing();
+        observability::test_run().ok();
 
         let (sender, _) = MyActorImpl::spawn().await.unwrap();
 
@@ -242,7 +231,7 @@ mod tests {
 
     #[tokio::test]
     async fn it_check_add_1() {
-        init_tracing();
+        observability::test_run().ok();
 
         let (sender, _) = MyActorImpl::spawn().await.unwrap();
 
@@ -251,7 +240,7 @@ mod tests {
 
     #[tokio::test]
     async fn it_check_internal() {
-        init_tracing();
+        observability::test_run().ok();
 
         let (sender, _) = MyActorImpl::spawn().await.unwrap();
 
@@ -263,7 +252,7 @@ mod tests {
 
     #[tokio::test]
     async fn it_check_shutdown() {
-        init_tracing();
+        observability::test_run().ok();
 
         let (sender, did_shutdown) = MyActorImpl::spawn().await.unwrap();
 
@@ -277,7 +266,7 @@ mod tests {
 
     #[tokio::test]
     async fn it_check_internal_shutdown() {
-        init_tracing();
+        observability::test_run().ok();
 
         let (sender, did_shutdown) = MyActorImpl::spawn().await.unwrap();
 

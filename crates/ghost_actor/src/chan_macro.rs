@@ -89,7 +89,7 @@ macro_rules! ghost_chan {
                     $(#[$rmeta])*
                     $rnamec {
                         /// Tracing span from request invocation.
-                        span: $crate::dependencies::tracing::Span,
+                        span_context: $crate::dependencies::observability::Context,
 
                         /// Response callback - respond to the request.
                         respond: $crate::GhostRespond<
@@ -110,7 +110,10 @@ macro_rules! ghost_chan {
                 fn ghost_actor_dispatch(self, h: &mut H) {
                     match self {
                         $(
-                            $aname::$rnamec { span: _span, respond, $($pname,)* } => {
+                            $aname::$rnamec { span_context, respond, $($pname,)* } => {
+                                let span = $crate::dependencies::tracing::trace_span!(concat!("handle_", stringify!($rname)));
+                                let _g = span.enter();
+                                $crate::dependencies::observability::OpenSpanExt::set_context(&span, span_context);
                                 respond.respond(h.[< handle_ $rname >]($($pname,)*));
                             }
                         )*
@@ -156,9 +159,11 @@ macro_rules! ghost_chan {
                 $(
                     $(#[$rmeta])*
                     fn $rname(&self, $($pname: $pty),*) -> [< $aname Future >] <$rret> {
+                        use $crate::dependencies::observability::OpenSpanExt;
                         let (s, r) = $crate::dependencies::futures::channel::oneshot::channel();
+                        let span_context = $crate::dependencies::tracing::Span::get_current_context();
                         let t = $aname::$rnamec {
-                            span: $crate::dependencies::tracing::Span::none(),
+                            span_context,
                             respond: $crate::GhostRespond::new(
                                 s,
                                 concat!(stringify!($rname), "_respond"),
@@ -168,7 +173,8 @@ macro_rules! ghost_chan {
                         let send_fut = self.ghost_actor_channel_send(t);
                         $crate::dependencies::must_future::MustBoxFuture::new(async move {
                             send_fut.await?;
-                            let (r, _span) = r.await.map_err($crate::GhostError::from)?;
+                            let (r, span_context) = r.await.map_err($crate::GhostError::from)?;
+                            $crate::dependencies::tracing::Span::set_current_context(span_context);
                             r?.await
                         })
                     }
