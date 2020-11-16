@@ -19,7 +19,7 @@ ghost_chan! {
 #[tokio::main]
 async fn main() -> Result<(), GhostError> {
     observability::test_run_open().ok();
-    let span = tracing::debug_span!("main", span_context = true);
+    let span = tracing::debug_span!("main");
     let _g = span.enter();
     span_context!(span);
     // spawn our actor, getting the actor sender.
