@@ -1,5 +1,5 @@
 #![forbid(unsafe_code)]
 #![forbid(warnings)]
 #![forbid(missing_docs)]
-//! A simple, ergonomic, idiomatic, macro for generating the boilerplate
-//! to use rust futures tasks in a concurrent actor style.
+//! GhostActor makes it simple, ergonomic, and idiomatic to implement
+//! async / concurrent code using an Actor model.
