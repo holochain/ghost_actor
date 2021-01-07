@@ -12,6 +12,7 @@ documentation = "https://docs.rs/ghost_actor"
 repository = "https://github.com/holochain/ghost_actor"
 
 [dependencies]
+futures = "0.3.8"
 
 [dev-dependencies]
 tokio = { version = "0.2", features = ["full"] }
