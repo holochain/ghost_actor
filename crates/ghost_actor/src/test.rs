@@ -3,7 +3,7 @@ async fn full_actor_workflow_test() {
     use crate::*;
 
     trait Fruit {
-        fn eat(&self) -> InvokeResult<String, GhostError>;
+        fn eat(&self) -> GhostFuture<String, GhostError>;
     }
 
     pub struct Banana(GhostActor<u32>);
@@ -17,12 +17,12 @@ async fn full_actor_workflow_test() {
     }
 
     impl Fruit for Banana {
-        fn eat(&self) -> InvokeResult<String, GhostError> {
+        fn eat(&self) -> GhostFuture<String, GhostError> {
             let actor = self.0.clone();
 
             resp(async move {
                 let count = actor
-                    .invoke(|count: &mut u32| {
+                    .invoke(|_, count| {
                         *count += 1;
                         Ok(*count)
                     })

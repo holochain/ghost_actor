@@ -3,156 +3,138 @@
 #![forbid(missing_docs)]
 //! GhostActor makes it simple, ergonomic, and idiomatic to implement
 //! async / concurrent code using an Actor model.
+//!
+//! GhostActor uses only safe code, and is futures executor agnostic--use
+//! tokio, futures, async-std, whatever you want.
+//!
+//! # What does it do?
+//!
+//! The GhostActor struct is a `'static + Send + Sync` cheaply clone-able
+//! handle for managing rapid, efficient, sequential, mutable access to
+//! internal state data.
+//!
+//! #### Basic Example
+//!
+//! ```
+//! # use ghost_actor::*;
+//! # #[tokio::main]
+//! # async fn main() {
+//! // set our initial state
+//! let (a, driver) = GhostActor::new(42_u32);
+//!
+//! // spawn the driver--using tokio here as an example
+//! tokio::task::spawn(driver);
+//!
+//! // invoke some logic on the internal state (just reading here)
+//! let result: Result<u32, GhostError> = a.invoke(|_, a| Ok(*a)).await;
+//!
+//! // assert the result
+//! assert_eq!(42, result.unwrap());
+//! # }
+//! ```
+//!
+//! # Chat Room Actor Example
+//!
+//! ```
+//! # use std::collections::HashMap;
+//! # use ghost_actor::*;
+//! type MessageList = Vec<String>;
+//!
+//! struct ChatState {
+//!     rooms: HashMap<String, MessageList>,
+//! }
+//!
+//! impl ChatState {
+//!     fn room(&mut self, room: String) -> &mut MessageList {
+//!         self
+//!             .rooms
+//!             .entry(room)
+//!             .or_insert_with(|| Vec::new())
+//!     }
+//!
+//!     fn post(&mut self, room: String, message: String) {
+//!         self.room(room).push(message);
+//!     }
+//!
+//!     fn read(&mut self, room: String) -> MessageList {
+//!         self.room(room).clone()
+//!     }
+//! }
+//!
+//! #[derive(Clone)]
+//! pub struct ChatServer(GhostActor<ChatState>);
+//!
+//! impl ChatServer {
+//!     pub async fn post(&self, room: &str, message: &str) {
+//!         let room = room.to_string();
+//!         let message = message.to_string();
+//!         self.0.invoke(move |_, state| {
+//!             state.post(room, message);
+//!             Result::<(), GhostError>::Ok(())
+//!         }).await.unwrap();
+//!     }
+//!
+//!     pub async fn read(&self, room: &str) -> Vec<String> {
+//!         let room = room.to_string();
+//!         self.0.invoke(move |_, state| {
+//!             let result = state.read(room);
+//!             Result::<Vec<String>, GhostError>::Ok(result)
+//!         }).await.unwrap()
+//!     }
+//! }
+//!
+//! #[tokio::main]
+//! async fn main() {
+//!     let state = ChatState { rooms: HashMap::new() };
+//!
+//!     let (actor, driver) = GhostActor::new(state);
+//!     tokio::task::spawn(driver);
+//!
+//!     let server1 = ChatServer(actor);
+//!     let server2 = server1.clone();
+//!
+//!     futures::future::join_all(vec![
+//!         server1.post("fruit", "banana"),
+//!         server2.post("fruit", "apple"),
+//!     ]).await;
+//!
+//!     let mut res = server1.read("fruit").await;
+//!     res.sort();
+//!     assert_eq!(
+//!         vec!["apple".to_string(), "banana".to_string()],
+//!         res,
+//!     );
+//! }
+//! ```
 
 use std::sync::Arc;
 
-/// Generic GhostActor Error Type
-#[derive(Debug, Clone)]
-pub struct GhostError(Arc<dyn std::error::Error + Send + Sync>);
+mod error;
+pub use error::*;
 
-impl std::fmt::Display for GhostError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{:?}", self)
-    }
-}
+mod driver;
+pub use driver::*;
 
-impl std::error::Error for GhostError {}
+mod future;
+pub use future::*;
 
-impl GhostError {
-    /// Convert a std Error into a GhostError
-    pub fn other<E: 'static + std::error::Error + Send + Sync>(e: E) -> Self {
-        Self(Arc::new(e))
-    }
-}
+mod config;
+pub use config::*;
 
-impl From<GhostError> for () {
-    fn from(_: GhostError) -> Self {}
-}
+mod as_trait;
+pub use as_trait::*;
 
-/// Driver future representing an actor task.
-/// Please spawn this into whatever executor framework you are using.
-#[must_use = "futures do nothing unless you `.await` or poll them"]
-pub struct ActorDriver(futures::future::BoxFuture<'static, ()>);
+mod actor;
+pub use actor::*;
 
-impl std::future::Future for ActorDriver {
-    type Output = ();
-
-    #[inline]
-    fn poll(
-        mut self: std::pin::Pin<&mut Self>,
-        cx: &mut std::task::Context,
-    ) -> std::task::Poll<Self::Output> {
-        std::future::Future::poll(self.0.as_mut(), cx)
-    }
-}
-
-/// Result future for GhostActor#invoke().
-#[must_use = "futures do nothing unless you `.await` or poll them"]
-pub struct InvokeResult<T, E>(
-    futures::future::BoxFuture<'static, Result<T, E>>,
-)
-where
-    E: 'static + From<GhostError> + Send;
-
-impl<T, E> InvokeResult<T, E>
-where
-    E: 'static + From<GhostError> + Send,
-{
-    /// Wrap another compatible future in an InvokeResult.
-    #[inline]
-    pub fn new<F>(f: F) -> Self
-    where
-        F: 'static + std::future::Future<Output = Result<T, E>> + Send,
-    {
-        Self(futures::future::FutureExt::boxed(f))
-    }
-}
-
-impl<T, E> std::future::Future for InvokeResult<T, E>
-where
-    E: 'static + From<GhostError> + Send,
-{
-    type Output = Result<T, E>;
-
-    #[inline]
-    fn poll(
-        mut self: std::pin::Pin<&mut Self>,
-        cx: &mut std::task::Context,
-    ) -> std::task::Poll<Self::Output> {
-        std::future::Future::poll(self.0.as_mut(), cx)
-    }
-}
-
-/// Wrap another compatible future in an InvokeResult.
+/// Wrap another compatible future in an GhostFuture.
 #[inline]
-pub fn resp<T, E, F>(f: F) -> InvokeResult<T, E>
+pub fn resp<R, E, F>(f: F) -> GhostFuture<R, E>
 where
     E: 'static + From<GhostError> + Send,
-    F: 'static + std::future::Future<Output = Result<T, E>> + Send,
+    F: 'static + std::future::Future<Output = Result<R, E>> + Send,
 {
-    InvokeResult::new(f)
-}
-
-type InnerInvoke<T> = Box<dyn FnOnce(&mut T) + 'static + Send>;
-type SendInvoke<T> = futures::channel::mpsc::Sender<InnerInvoke<T>>;
-
-/// GhostActor manages task efficient sequential mutable access
-/// to internal state data (type T).
-/// GhostActors are `'static` and cheaply clone-able.
-/// A clone retains a channel to the same internal state data.
-#[derive(Clone)]
-pub struct GhostActor<T: 'static + Send>(Arc<SendInvoke<T>>);
-
-impl<T: 'static + Send> GhostActor<T> {
-    /// Create a ne GhostActor with initial state.
-    pub fn new(mut t: T) -> (Self, ActorDriver) {
-        let (send, recv) =
-            futures::channel::mpsc::channel::<InnerInvoke<T>>(10);
-        let driver =
-            ActorDriver(futures::future::FutureExt::boxed(async move {
-                // mitigate task thrashing
-                let mut recv =
-                    futures::stream::StreamExt::ready_chunks(recv, 1024);
-
-                while let Some(invokes) =
-                    futures::stream::StreamExt::next(&mut recv).await
-                {
-                    for invoke in invokes {
-                        // give invokes sequential access to mutable state
-                        invoke(&mut t);
-                    }
-                }
-            }));
-
-        (Self(Arc::new(send)), driver)
-    }
-
-    /// Push state read/mutation logic onto actor queue for processing.
-    pub fn invoke<R, E, F>(&self, invoke: F) -> InvokeResult<R, E>
-    where
-        R: 'static + Send,
-        E: 'static + From<GhostError> + Send,
-        F: FnOnce(&mut T) -> Result<R, E> + 'static + Send,
-    {
-        let mut sender: SendInvoke<T> = (*self.0).clone();
-        resp(async move {
-            // set up oneshot result channel
-            let (o_send, o_recv) = futures::channel::oneshot::channel();
-
-            // construct logic closure
-            let inner: InnerInvoke<T> = Box::new(move |t: &mut T| {
-                let r = invoke(t);
-                let _ = o_send.send(r);
-            });
-
-            // forward logic closure to actor task driver
-            use futures::sink::SinkExt;
-            sender.send(inner).await.map_err(GhostError::other)?;
-
-            // await response
-            o_recv.await.map_err(GhostError::other)?
-        })
-    }
+    GhostFuture::new(f)
 }
 
 #[cfg(test)]
