@@ -34,3 +34,13 @@ where
         std::future::Future::poll(self.0.as_mut(), cx)
     }
 }
+
+/// Wrap another compatible future in an GhostFuture.
+#[inline]
+pub fn resp<R, E, F>(f: F) -> GhostFuture<R, E>
+where
+    E: 'static + From<GhostError> + Send,
+    F: 'static + std::future::Future<Output = Result<R, E>> + Send,
+{
+    GhostFuture::new(f)
+}

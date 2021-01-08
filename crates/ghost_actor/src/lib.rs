@@ -26,7 +26,7 @@
 //! tokio::task::spawn(driver);
 //!
 //! // invoke some logic on the internal state (just reading here)
-//! let result: Result<u32, GhostError> = a.invoke(|_, a| Ok(*a)).await;
+//! let result: Result<u32, GhostError> = a.invoke(|a| Ok(*a)).await;
 //!
 //! // assert the result
 //! assert_eq!(42, result.unwrap());
@@ -68,7 +68,7 @@
 //!     pub async fn post(&self, room: &str, message: &str) {
 //!         let room = room.to_string();
 //!         let message = message.to_string();
-//!         self.0.invoke(move |_, state| {
+//!         self.0.invoke(move |state| {
 //!             state.post(room, message);
 //!             Result::<(), GhostError>::Ok(())
 //!         }).await.unwrap();
@@ -76,7 +76,7 @@
 //!
 //!     pub async fn read(&self, room: &str) -> Vec<String> {
 //!         let room = room.to_string();
-//!         self.0.invoke(move |_, state| {
+//!         self.0.invoke(move |state| {
 //!             let result = state.read(room);
 //!             Result::<Vec<String>, GhostError>::Ok(result)
 //!         }).await.unwrap()
@@ -107,35 +107,19 @@
 //! }
 //! ```
 
-use std::sync::Arc;
-
 mod error;
 pub use error::*;
-
+mod as_ghost_actor;
+use as_ghost_actor::ghost_actor_trait::*;
+pub use as_ghost_actor::*;
 mod driver;
 pub use driver::*;
-
 mod future;
 pub use future::*;
-
 mod config;
 pub use config::*;
-
-mod as_trait;
-pub use as_trait::*;
-
 mod actor;
 pub use actor::*;
-
-/// Wrap another compatible future in an GhostFuture.
-#[inline]
-pub fn resp<R, E, F>(f: F) -> GhostFuture<R, E>
-where
-    E: 'static + From<GhostError> + Send,
-    F: 'static + std::future::Future<Output = Result<R, E>> + Send,
-{
-    GhostFuture::new(f)
-}
 
 #[cfg(test)]
 mod test;

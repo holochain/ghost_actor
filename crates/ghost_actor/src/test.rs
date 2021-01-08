@@ -22,7 +22,7 @@ async fn full_actor_workflow_test() {
 
             resp(async move {
                 let count = actor
-                    .invoke(|_, count| {
+                    .invoke::<_, GhostError, _>(|count| {
                         *count += 1;
                         Ok(*count)
                     })
@@ -34,8 +34,8 @@ async fn full_actor_workflow_test() {
     }
 
     let banana = Banana::new();
-    assert_eq!("ate 1 bananas", &banana.eat().await.unwrap(),);
+    assert_eq!("ate 1 bananas", &banana.eat().await.unwrap());
 
     let fruit: Box<dyn Fruit> = Box::new(banana);
-    assert_eq!("ate 2 bananas", &fruit.eat().await.unwrap(),);
+    assert_eq!("ate 2 bananas", &fruit.eat().await.unwrap());
 }

@@ -1,4 +1,5 @@
 use crate::*;
+use std::sync::Arc;
 
 type InnerInvoke<T> = Box<dyn FnOnce(&mut T) + 'static + Send>;
 type SendInvoke<T> = futures::channel::mpsc::Sender<InnerInvoke<T>>;
@@ -42,33 +43,33 @@ impl<T: 'static + Send> GhostActor<T> {
         (Self(Arc::new(send)), driver)
     }
 
+    /// Get a type-erased BoxGhostActor version of this handle.
+    pub fn to_boxed(&self) -> BoxGhostActor {
+        self.__box_clone()
+    }
+
     /// Push state read/mutation logic onto actor queue for processing.
     pub fn invoke<R, E, F>(&self, invoke: F) -> GhostFuture<R, E>
     where
         R: 'static + Send,
         E: 'static + From<GhostError> + Send,
-        F: FnOnce(Self, &mut T) -> Result<R, E> + 'static + Send,
+        F: FnOnce(&mut T) -> Result<R, E> + 'static + Send,
     {
-        let this = self.clone();
+        let mut sender = (*self.0).clone();
         //let mut sender: SendInvoke<T> = (*self.0).clone();
         resp(async move {
             // set up oneshot result channel
             let (o_send, o_recv) = futures::channel::oneshot::channel();
 
             // construct logic closure
-            let this2 = this.clone();
             let inner: InnerInvoke<T> = Box::new(move |t: &mut T| {
-                let r = invoke(this2, t);
+                let r = invoke(t);
                 let _ = o_send.send(r);
             });
 
             // forward logic closure to actor task driver
             use futures::sink::SinkExt;
-            (*this.0)
-                .clone()
-                .send(inner)
-                .await
-                .map_err(GhostError::other)?;
+            sender.send(inner).await.map_err(GhostError::other)?;
 
             // await response
             o_recv.await.map_err(GhostError::other)?
@@ -88,21 +89,36 @@ impl<T: 'static + Send> GhostActor<T> {
     }
 }
 
-impl<T: 'static + Send> AsGhostActor<T> for GhostActor<T> {
-    fn invoke<R, E, F>(&self, invoke: F) -> GhostFuture<R, E>
-    where
-        R: 'static + Send,
-        E: 'static + From<GhostError> + Send,
-        F: FnOnce(Self, &mut T) -> Result<R, E> + 'static + Send,
-    {
-        GhostActor::invoke(self, invoke)
+impl<T: 'static + Send> AsGhostActor for GhostActor<T> {
+    fn __invoke(
+        &self,
+        invoke: RawInvokeClosure,
+    ) -> GhostFuture<Box<dyn std::any::Any + 'static + Send>, GhostError> {
+        let fut = self.invoke(|t| invoke(t));
+        resp(async move { fut.await })
     }
 
-    fn is_active(&self) -> bool {
+    fn __box_clone(&self) -> BoxGhostActor {
+        BoxGhostActor(Box::new(self.clone()))
+    }
+
+    fn __is_same_actor(&self, o: &dyn std::any::Any) -> bool {
+        let o: &GhostActor<T> = match std::any::Any::downcast_ref(o) {
+            None => return false,
+            Some(o) => o,
+        };
+        self.0.same_receiver(&o.0)
+    }
+
+    fn __hash_actor(&self, hasher: &mut dyn std::hash::Hasher) {
+        self.0.hash_receiver(&mut Box::new(hasher));
+    }
+
+    fn __is_active(&self) -> bool {
         GhostActor::is_active(self)
     }
 
-    fn shutdown(&self) {
+    fn __shutdown(&self) {
         GhostActor::shutdown(self);
     }
 }

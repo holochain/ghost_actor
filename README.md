@@ -25,7 +25,7 @@ let (a, driver) = GhostActor::new(42_u32);
 tokio::task::spawn(driver);
 
 // invoke some logic on the internal state (just reading here)
-let result: Result<u32, GhostError> = a.invoke(|_, a| Ok(*a)).await;
+let result: Result<u32, GhostError> = a.invoke(|a| Ok(*a)).await;
 
 // assert the result
 assert_eq!(42, result.unwrap());
@@ -64,7 +64,7 @@ impl ChatServer {
     pub async fn post(&self, room: &str, message: &str) {
         let room = room.to_string();
         let message = message.to_string();
-        self.0.invoke(move |_, state| {
+        self.0.invoke(move |state| {
             state.post(room, message);
             Result::<(), GhostError>::Ok(())
         }).await.unwrap();
@@ -72,7 +72,7 @@ impl ChatServer {
 
     pub async fn read(&self, room: &str) -> Vec<String> {
         let room = room.to_string();
-        self.0.invoke(move |_, state| {
+        self.0.invoke(move |state| {
             let result = state.read(room);
             Result::<Vec<String>, GhostError>::Ok(result)
         }).await.unwrap()
