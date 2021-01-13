@@ -173,6 +173,12 @@
 //!
 //! - [Bounce](https://github.com/holochain/ghost_actor/blob/master/crates/ghost_actor/examples/bounce.rs): `cargo run --example bounce`
 
+/// Re-exported dependencies.
+pub mod dependencies {
+    pub use futures;
+    pub use tracing;
+}
+
 mod error;
 pub use error::*;
 mod as_ghost_actor;
