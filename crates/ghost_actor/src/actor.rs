@@ -1,5 +1,6 @@
 use crate::*;
 use std::sync::Arc;
+use tracing::Instrument;
 
 type InnerInvoke<T> = Box<dyn FnOnce(&mut T) + 'static + Send>;
 type SendInvoke<T> = futures::channel::mpsc::Sender<InnerInvoke<T>>;
@@ -56,24 +57,39 @@ impl<T: 'static + Send> GhostActor<T> {
         F: FnOnce(&mut T) -> Result<R, E> + 'static + Send,
     {
         let mut sender = (*self.0).clone();
-        //let mut sender: SendInvoke<T> = (*self.0).clone();
-        resp(async move {
-            // set up oneshot result channel
-            let (o_send, o_recv) = futures::channel::oneshot::channel();
+        resp(
+            async move {
+                // capture tracing context
+                let strong = Arc::new(tracing::Span::current());
+                let weak = Arc::downgrade(&strong);
 
-            // construct logic closure
-            let inner: InnerInvoke<T> = Box::new(move |t: &mut T| {
-                let r = invoke(t);
-                let _ = o_send.send(r);
-            });
+                // set up oneshot result channel
+                let (o_send, o_recv) = futures::channel::oneshot::channel();
 
-            // forward logic closure to actor task driver
-            use futures::sink::SinkExt;
-            sender.send(inner).await.map_err(GhostError::other)?;
+                // construct logic closure
+                let inner: InnerInvoke<T> = Box::new(move |t: &mut T| {
+                    let strong = match weak.upgrade() {
+                        Some(strong) => strong,
+                        None => {
+                            tracing::warn!("TRACING: Parent context dropped");
+                            Arc::new(tracing::Span::current())
+                        }
+                    };
+                    strong.in_scope(|| {
+                        let r = invoke(t);
+                        let _ = o_send.send(r);
+                    });
+                });
 
-            // await response
-            o_recv.await.map_err(GhostError::other)?
-        })
+                // forward logic closure to actor task driver
+                use futures::sink::SinkExt;
+                sender.send(inner).await.map_err(GhostError::other)?;
+
+                // await response
+                o_recv.await.map_err(GhostError::other)?
+            }
+            .instrument(tracing::Span::current()),
+        )
     }
 
     /// Returns `true` if the channel is still connected to the actor task.

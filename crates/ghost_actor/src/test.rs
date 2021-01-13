@@ -1,6 +1,40 @@
+use crate::*;
+use tracing::Instrument;
+
+#[tokio::test]
+async fn box_ghost_actor_test() {
+    observability::test_run().ok();
+
+    let (msg, driver) = GhostActor::new("".to_string());
+    tokio::task::spawn(driver);
+    let msg: BoxGhostActor = msg.to_boxed();
+
+    let _g = tracing::warn_span!("box_ghost_actor_test");
+    let _g = _g.enter();
+
+    msg.invoke(|msg: &mut String| {
+        msg.push_str("Hello ");
+        tracing::warn!(?msg);
+        <Result<(), GhostError>>::Ok(())
+    })
+    .await
+    .unwrap();
+
+    assert_eq!(
+        "Hello World!",
+        &msg.invoke(|msg: &mut String| {
+            msg.push_str("World!");
+            tracing::warn!(?msg);
+            <Result<String, GhostError>>::Ok(msg.clone())
+        })
+        .await
+        .unwrap()
+    );
+}
+
 #[tokio::test]
 async fn full_actor_workflow_test() {
-    use crate::*;
+    observability::test_run().ok();
 
     trait Fruit {
         fn eat(&self) -> GhostFuture<String, GhostError>;
@@ -20,16 +54,22 @@ async fn full_actor_workflow_test() {
         fn eat(&self) -> GhostFuture<String, GhostError> {
             let actor = self.0.clone();
 
-            resp(async move {
-                let count = actor
-                    .invoke::<_, GhostError, _>(|count| {
-                        *count += 1;
-                        Ok(*count)
-                    })
-                    .await?;
+            resp(
+                async move {
+                    tracing::warn!("Driving Banana.eat() future");
 
-                Ok(format!("ate {} bananas", count))
-            })
+                    let count = actor
+                        .invoke::<_, GhostError, _>(|count| {
+                            *count += 1;
+                            tracing::warn!(?count, "banana.increment_count");
+                            Ok(*count)
+                        })
+                        .await?;
+
+                    Ok(format!("ate {} bananas", count))
+                }
+                .instrument(tracing::warn_span!("banana.eat")),
+            )
         }
     }
 

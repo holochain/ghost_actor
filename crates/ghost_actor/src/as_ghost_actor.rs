@@ -104,6 +104,10 @@ impl BoxGhostActor {
         E: 'static + From<GhostError> + Send,
         F: FnOnce(&mut T) -> Result<R, E> + 'static + Send,
     {
+        // NOTE - we don't have to do any tracing trickery here
+        //        it can all be handled by the concrete implementation
+        //        of __invoke
+
         let inner = Box::new(move |a: &mut dyn std::any::Any| {
             let t: &mut T = match a.downcast_mut() {
                 None => {
@@ -120,7 +124,7 @@ impl BoxGhostActor {
 
         resp(async move {
             let a: Box<dyn std::any::Any> = fut.await?;
-            let r: R = match a.downcast::<R>() {
+            let r: Result<R, E> = match a.downcast() {
                 Err(_) => {
                     return Err(
                         GhostError::from("invalid concrete type R").into()
@@ -128,7 +132,7 @@ impl BoxGhostActor {
                 }
                 Ok(r) => *r,
             };
-            Ok(r)
+            r
         })
     }
 
