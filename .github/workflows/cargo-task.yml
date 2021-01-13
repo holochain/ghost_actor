@@ -11,7 +11,7 @@ jobs:
     os: [
      ubuntu-latest,
      macos-latest,
-     windows-latest,
+     #windows-latest,
     ]
     toolchain: [
      stable,
@@ -23,7 +23,8 @@ jobs:
 
    - uses: actions-rs/toolchain@v1
      with:
-       toolchain: ${{ matrix.toolchain }}
+      toolchain: ${{ matrix.toolchain }}
+      components: rustfmt, clippy
 
    # install cargo-task
    - uses: actions-rs/cargo@v1
@@ -34,4 +35,4 @@ jobs:
    # run all the tests
    - uses: actions-rs/cargo@v1
      with:
-       command: task
+      command: task
