@@ -3,199 +3,158 @@
 
 # ghost_actor
 
-A simple, ergonomic, idiomatic, macro for generating the boilerplate
-to use rust futures tasks in a concurrent actor style.
+GhostActor makes it simple, ergonomic, and idiomatic to implement
+async / concurrent code using an Actor model.
 
-### Hello World Example
+GhostActor uses only safe code, and is futures executor agnostic--use
+tokio, futures, async-std, whatever you want. The following examples use
+tokio.
+
+## What does it do?
+
+The GhostActor struct is a `'static + Send + Sync` cheaply clone-able
+handle for managing rapid, efficient, sequential, mutable access to
+internal state data.
+
+## Using the raw type:
 
 ```rust
-// Most of the GhostActor magic happens in this macro.
-// Sender and Handler traits will be generated here.
-ghost_chan! {
-    pub chan HelloWorldApi<GhostError> {
-        fn hello_world() -> String;
+// set our initial state
+let (a, driver) = GhostActor::new(42_u32);
+
+// spawn the driver--using tokio here as an example
+tokio::task::spawn(driver);
+
+// invoke some logic on the internal state (just reading here)
+let result: Result<u32, GhostError> = a.invoke(|a| Ok(*a)).await;
+
+// assert the result
+assert_eq!(42, result.unwrap());
+```
+
+## Best Practice: Internal state in a New Type:
+
+GhostActor is easiest to work with when you have an internal state struct,
+wrapped in a new type of a GhostActor:
+
+```rust
+struct InnerState {
+    age: u32,
+    name: String,
+}
+
+#[derive(Clone, PartialEq, Eq, Hash)]
+pub struct Person(GhostActor<InnerState>);
+
+impl Person {
+    pub fn new(age: u32, name: String) -> Self {
+        let (actor, driver) = GhostActor::new(InnerState { age, name });
+        tokio::task::spawn(driver);
+        Self(actor)
+    }
+
+    pub async fn birthday(&self) -> String {
+        self.0.invoke(|inner| {
+            inner.age += 1;
+            let msg = format!(
+                "Happy birthday {}, you are {} years old.",
+                inner.name,
+                inner.age,
+            );
+            <Result::<String, GhostError>>::Ok(msg)
+        }).await.unwrap()
     }
 }
 
-// ... We'll skip implementing a handler for now ...
-
-#[tokio::main]
-async fn main() -> Result<(), GhostError> {
-    // spawn our actor, getting the actor sender.
-    let sender = spawn_hello_world().await?;
-
-    // we can make async calls on the sender
-    assert_eq!("hello world!", &sender.hello_world().await?);
-    println!("{}", sender.hello_world().await?);
-
-    Ok(())
-}
+let bob = Person::new(42, "Bob".to_string());
+assert_eq!(
+    "Happy birthday Bob, you are 43 years old.",
+    &bob.birthday().await,
+);
 ```
 
-What's going on Here?
-
-- The `ghost_chan!` macro writes some types and boilerplate for us.
-- We'll dig into implementing actor handlers below.
-- We are able to spawn an actor that runs as a futures task.
-- We can make async requests on that actor, and get results inline.
-
-### The `ghost_chan!` Macro
+## Using traits (and GhostFuture) to provide dynamic actor types:
 
 ```rust
-ghost_chan! {
-    pub chan HelloWorldApi<GhostError> {
-        fn hello_world() -> String;
+pub trait Fruit {
+    // until async traits are available in rust, you can use GhostFuture
+    fn eat(&self) -> GhostFuture<String, GhostError>;
+
+    // allows implementing clone on BoxFruit
+    fn box_clone(&self) -> BoxFruit;
+}
+
+pub type BoxFruit = Box<dyn Fruit>;
+
+impl Clone for BoxFruit {
+    fn clone(&self) -> Self {
+        self.box_clone()
     }
 }
-```
 
-The `ghost_chan!` macro takes care of writing the boilerplate for using
-async functions to communicate with an "actor" running as a futures
-task. The tests/examples here use tokio for the task executor, but
-the GhostActorBuilder returns a driver future for the actor task that you
-can manage any way you'd like.
+#[derive(Clone, PartialEq, Eq, Hash)]
+pub struct Banana(GhostActor<u32>);
 
-The `ghost_chan!` macro generates some important types, many of which
-are derived by pasting words on to the end of your actor name.
-We'll use the actor name `HelloWorldApi` from above as an example:
-
-- `HelloWorldApiSender` - The "Sender" trait generated for your actor
-  allows users with a `GhostSender<HelloWorldApi>` instance to make
-  async calls. Basically, this "Sender" trait provides the API that
-  makes the whole actor system work.
-- `HelloWorldApiHandler` - This "Handler" trait is what allows you
-  to implement an actor task that can respond to requests sent by
-  the "Sender".
-- `HelloWorldApi` - You may have noticed above, the "Sender" instance
-  that users of your api will receive is typed as
-  `GhostSender<HelloWorldApi>`. The item that receives the name of your
-  actor without having anything pasted on to it is actually a `GhostEvent`
-  enum designed for carrying messages from your "Sender" to your
-  "Handler", and then delivering the result back to your API user.
-
-### Implementing an Actor Handler
-
-```rust
-/// We need a struct to implement our handler upon.
-struct HelloWorldImpl;
-
-/// All handlers must implement GhostControlHandler.
-/// This provides a default no-op handle_ghost_actor_shutdown impl.
-impl GhostControlHandler for HelloWorldImpl {}
-
-/// Implement GhostHandler for your specific GhostEvent type.
-/// Don't worry, the compiler will let you know if you forget this : )
-impl GhostHandler<HelloWorldApi> for HelloWorldImpl {}
-
-/// Now implement your actual handler -
-/// auto generated by the `ghost_chan!` macro.
-impl HelloWorldApiHandler for HelloWorldImpl {
-    fn handle_hello_world(&mut self) -> HelloWorldApiHandlerResult<String> {
-        Ok(must_future::MustBoxFuture::new(async move {
-            // return our results
-            Ok("hello world!".to_string())
-        }))
+impl Banana {
+    pub fn new() -> BoxFruit {
+        let (actor, driver) = GhostActor::new(0);
+        tokio::task::spawn(driver);
+        Box::new(Self(actor))
     }
 }
-```
 
-Pretty straight forward. We implement a couple required traits,
-then our "Handler" trait that actually defines the logic of our actor.
-Then, we're ready to spawn it!
+impl Fruit for Banana {
+    fn eat(&self) -> GhostFuture<String, GhostError> {
+        let fut = self.0.invoke(|count| {
+            *count += 1;
+            <Result<u32, GhostError>>::Ok(*count)
+        });
 
-### Spawning an Actor
+        // 'resp()' is a helper function that builds a GhostFuture
+        // from any other future that has a matching Output.
+        resp(async move {
+            Ok(format!("ate {} bananas", fut.await.unwrap()))
+        })
+    }
 
-```rust
-/// Use the GhostActorBuilder to construct the actor task.
-pub async fn spawn_hello_world(
-) -> Result<GhostSender<HelloWorldApi>, GhostError> {
-    // first we need a builder
-    let builder = actor_builder::GhostActorBuilder::new();
-
-    // now let's register an event channel with this actor.
-    let sender = builder
-        .channel_factory()
-        .create_channel::<HelloWorldApi>()
-        .await?;
-
-    // actually spawn the actor driver task
-    // providing our implementation
-    tokio::task::spawn(builder.spawn(HelloWorldImpl));
-
-    // return the sender that controls the actor
-    Ok(sender)
-}
-```
-
-Note how we actually get access to the cheaply-clonable "Sender"
-before we have to construct our actor "Handler" item. This means
-you can create channels that will be able to message the actor,
-and include those senders in your handler struct. More on this later.
-
-### The Complete Hello World Example
-
-- [https://github.com/holochain/ghost_actor/blob/master/crates/ghost_actor/examples/hello_world.rs](https://github.com/holochain/ghost_actor/blob/master/crates/ghost_actor/examples/hello_world.rs)
-
-### Custom Errors
-
-A single ghost channel / actor api will use a single error / result type.
-You can use the provided `ghost_actor::GhostError` type - or you can
-specify a custom error type.
-
-Your custom error type must support `From<GhostError>`.
-
-```rust
-#[derive(Debug, thiserror::Error)]
-pub enum MyError {
-    /// Custom error types MUST implement `From<GhostError>`
-    #[error(transparent)]
-    GhostError(#[from] GhostError),
-
-    /// Of course, you can also have your own variants as well
-    #[error("My Error Type")]
-    MyErrorType,
-}
-
-ghost_chan! {
-    /// The error type for actor apis is specified in the macro
-    /// as the single generic following the actor name:
-    pub chan MyActor<MyError> {
-        fn my_fn() -> ();
+    fn box_clone(&self) -> BoxFruit {
+        Box::new(self.clone())
     }
 }
+
+// we could implement a similar 'Apple' struct
+// that could be interchanged here:
+let fruit: BoxFruit = Banana::new();
+assert_eq!("ate 1 bananas", &fruit.eat().await.unwrap());
 ```
 
-### Efficiency! - Ghost Actor's Synchronous Handler Blocks
+## Custom GhostActor error types:
 
-GhostActor handler traits are carefully costructed to allow `&'a mut self`
-access to the handler item, but return a `'static` future. That `'static`
-means references to the handler item cannot be captured in any async code.
+The `GhostActor::invoke()` function takes a generic error type.
+The only requirement is that it must implement `From<GhostError>`:
 
-This can be frustrating for new users, but serves a specific purpose!
+```rust
+#[derive(Debug)]
+struct MyError;
+impl std::error::Error for MyError {}
+impl std::fmt::Display for MyError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{:?}", self)
+    }
+}
+impl From<GhostError> for MyError {
+    fn from(_: GhostError) -> Self {
+        Self
+    }
+}
 
-We are being good rust futures authors and working around any blocking
-code in the manner our executor frameworks recommend, so our actor
-handler can process messages at lightning speed!
+let (actor, driver) = GhostActor::new(42_u32);
+tokio::task::spawn(driver);
+assert_eq!(42, actor.invoke(|inner| {
+    <Result<u32, MyError>>::Ok(*inner)
+}).await.unwrap());
+```
 
-Our actor doesn't have to context switch, because it has all its mutable
-internal state right here in this thread handling all these messages. And,
-when it's done with one message, it moves right onto the next without
-interuption. When the message queue is drained it schedules a wakeup for
-when there is more data to process.
+## Code Examples:
 
-In writing our code to support this pattern, we find that our code natually
-tends toward patterns that support parallel work being done to make better
-use of modern multi-core processors.
-
-See especially the "Internal Sender Pattern" in the next section below.
-
-### Advanced Patterns for Working with Ghost Actors
-
-- [Internal Sender Pattern](https://github.com/holochain/ghost_actor/blob/master/crates/ghost_actor/examples/pattern_internal_sender.rs) -
-  Facilitates undertaking async work in GhostActor handler functions.
-- [Event Publish/Subscribe Pattern](https://github.com/holochain/ghost_actor/blob/master/crates/ghost_actor/examples/pattern_event_pub_sub.rs) -
-  Facilitates an actor's ability to async emit notifications/requests,
-  and a "parent" actor being able to handle events from a child actor.
-- [Clone Channel Factory Pattern](https://github.com/holochain/ghost_actor/blob/master/crates/ghost_actor/examples/pattern_clone_channel_factory.rs) -
-  Facilitates an actor's ability to absorb additional channel
-  receivers post-spawn.
+- [Bounce](https://github.com/holochain/ghost_actor/blob/master/crates/ghost_actor/examples/bounce.rs): `cargo run --example bounce`
