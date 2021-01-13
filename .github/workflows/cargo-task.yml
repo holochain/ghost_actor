@@ -50,9 +50,7 @@ jobs:
         os: [
           ubuntu-latest,
           macos-latest,
-          # windows disable until fixed:
-          # https://github.com/dtolnay/proc-macro-hack/issues/63#issuecomment-759680566
-          # windows-latest,
+          windows-latest,
         ]
         toolchain: [stable]
     steps:
