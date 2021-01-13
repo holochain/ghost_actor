@@ -47,7 +47,13 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
+        os: [
+          ubuntu-latest,
+          macos-latest,
+          # windows disable until fixed:
+          # https://github.com/dtolnay/proc-macro-hack/issues/63#issuecomment-759680566
+          # windows-latest,
+        ]
         toolchain: [stable]
     steps:
       - uses: actions/checkout@v2
