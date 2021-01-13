@@ -3,85 +3,11 @@ name: ghost_actor
 on: [ push ]
 
 jobs:
-  fmt-check:
-    runs-on: ${{ matrix.os }}
-    strategy:
-      matrix:
-        os: [ubuntu-latest]
-        toolchain: [stable]
-    steps:
-      - uses: actions/checkout@v2
-      - uses: actions-rs/toolchain@v1
-        with:
-          toolchain: ${{ matrix.toolchain }}
-          components: rustfmt
-      - uses: actions-rs/cargo@v1
-        with:
-          command: install
-          args: cargo-task
-      - uses: actions-rs/cargo@v1
-        with:
-          command: task
-          args: fmt-check
-  clippy:
-    runs-on: ${{ matrix.os }}
-    strategy:
-      matrix:
-        os: [ubuntu-latest]
-        toolchain: [stable]
-    steps:
-      - uses: actions/checkout@v2
-      - uses: actions-rs/toolchain@v1
-        with:
-          toolchain: ${{ matrix.toolchain }}
-          components: clippy
-      - uses: actions-rs/cargo@v1
-        with:
-          command: install
-          args: cargo-task
-      - uses: actions-rs/cargo@v1
-        with:
-          command: task
-          args: clippy
   test:
-    runs-on: ${{ matrix.os }}
-    strategy:
-      matrix:
-        os: [
-          ubuntu-latest,
-          macos-latest,
-          windows-latest,
-        ]
-        toolchain: [stable]
+    runs-on: windows-latest
     steps:
       - uses: actions/checkout@v2
       - uses: actions-rs/toolchain@v1
         with:
-          toolchain: ${{ matrix.toolchain }}
-      - uses: actions-rs/cargo@v1
-        with:
-          command: install
-          args: cargo-task
-      - uses: actions-rs/cargo@v1
-        with:
-          command: task
-          args: test
-  readme:
-    runs-on: ${{ matrix.os }}
-    strategy:
-      matrix:
-        os: [ubuntu-latest]
-        toolchain: [stable]
-    steps:
-      - uses: actions/checkout@v2
-      - uses: actions-rs/toolchain@v1
-        with:
-          toolchain: ${{ matrix.toolchain }}
-      - uses: actions-rs/cargo@v1
-        with:
-          command: install
-          args: cargo-task
-      - uses: actions-rs/cargo@v1
-        with:
-          command: task
-          args: readme
+          toolchain: stable
+      - run: cargo test --all-features --manifest-path repro/Cargo.toml
