@@ -157,4 +157,13 @@ assert_eq!(42, actor.invoke(|inner| {
 
 ## Code Examples:
 
-- [Bounce](https://github.com/holochain/ghost_actor/blob/master/crates/ghost_actor/examples/bounce.rs): `cargo run --example bounce`
+- [Bounce](https://github.com/holochain/ghost_actor/blob/master/examples/bounce.rs): `cargo run --example bounce`
+
+## Contributing:
+
+This repo uses `cargo-task`.
+
+```rust
+cargo install cargo-task
+cargo task
+```
