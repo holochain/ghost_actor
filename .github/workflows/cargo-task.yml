@@ -10,4 +10,11 @@ jobs:
       - uses: actions-rs/toolchain@v1
         with:
           toolchain: stable
-      - run: cargo test --all-features --manifest-path repro/Cargo.toml
+      - uses: actions-rs/cargo@v1
+        with:
+          command: install
+          args: cargo-task
+      - uses: actions-rs/cargo@v1
+        with:
+          command: task
+          args: test

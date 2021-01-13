@@ -13,6 +13,8 @@ fn main() {
     let mut cmd = env.cargo();
     cmd
         .arg("test")
+        .arg("--manifest-path")
+        .arg("repro/Cargo.toml")
         .arg("--all-features");
     ct_check_fatal!(env.exec(cmd));
 }
