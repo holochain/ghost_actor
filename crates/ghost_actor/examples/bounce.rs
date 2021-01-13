@@ -63,8 +63,7 @@ impl NoGravity {
                     })
                     .await?;
 
-                tokio::time::delay_for(std::time::Duration::from_millis(50))
-                    .await;
+                tokio::time::sleep(std::time::Duration::from_millis(50)).await;
             }
             Result::Ok(())
         });
@@ -136,8 +135,7 @@ impl Gravity {
                     .await?;
 
                 // target ~ 50 fps
-                tokio::time::delay_for(std::time::Duration::from_millis(20))
-                    .await;
+                tokio::time::sleep(std::time::Duration::from_millis(20)).await;
             }
             Result::Ok(())
         });
@@ -254,7 +252,7 @@ pub async fn main() -> Result<()> {
         std::io::Write::flush(&mut std::io::stdout()).unwrap();
 
         // target ~ 50 fps
-        tokio::time::delay_for(std::time::Duration::from_millis(20)).await;
+        tokio::time::sleep(std::time::Duration::from_millis(20)).await;
     }
 
     Ok(())

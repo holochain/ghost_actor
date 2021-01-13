@@ -2,6 +2,45 @@ use crate::*;
 use tracing::Instrument;
 
 #[tokio::test]
+async fn caller_send_drop_no_panic() {
+    observability::test_run().ok();
+    let (msg, driver) = GhostActor::new("".to_string());
+    tokio::task::spawn(driver);
+
+    let fut = {
+        // set up a parent tracing context that will be dropped
+        let _g = tracing::warn_span!("box_ghost_actor_test");
+        let _g = _g.enter();
+
+        let mut fut = msg.invoke(|msg: &mut String| {
+            msg.push_str("Hello ");
+            tracing::warn!(?msg);
+            <Result<String, GhostError>>::Ok(msg.clone())
+        });
+
+        // poll once, then drop
+        futures::future::poll_fn(move |cx| {
+            let fut = &mut fut;
+            futures::pin_mut!(fut);
+            match std::future::Future::poll(fut, cx) {
+                std::task::Poll::Pending => (),
+                _ => panic!(),
+            };
+            std::task::Poll::Ready(())
+        })
+        .await;
+
+        msg.invoke(|msg: &mut String| {
+            msg.push_str("World!");
+            tracing::warn!(?msg);
+            <Result<String, GhostError>>::Ok(msg.clone())
+        })
+    };
+
+    assert_eq!("Hello World!", &fut.await.unwrap());
+}
+
+#[tokio::test]
 async fn box_ghost_actor_test() {
     observability::test_run().ok();
 

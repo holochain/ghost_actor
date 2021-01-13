@@ -7,7 +7,8 @@ GhostActor makes it simple, ergonomic, and idiomatic to implement
 async / concurrent code using an Actor model.
 
 GhostActor uses only safe code, and is futures executor agnostic--use
-tokio, futures, async-std, whatever you want.
+tokio, futures, async-std, whatever you want. The following examples use
+tokio.
 
 ## What does it do?
 
@@ -15,7 +16,7 @@ The GhostActor struct is a `'static + Send + Sync` cheaply clone-able
 handle for managing rapid, efficient, sequential, mutable access to
 internal state data.
 
-##### Basic Example
+## Using the raw type:
 
 ```rust
 // set our initial state
@@ -31,74 +32,129 @@ let result: Result<u32, GhostError> = a.invoke(|a| Ok(*a)).await;
 assert_eq!(42, result.unwrap());
 ```
 
-## Chat Room Actor Example
+## Best Practice: Internal state in a New Type:
+
+GhostActor is easiest to work with when you have an internal state struct,
+wrapped in a new type of a GhostActor:
 
 ```rust
-type MessageList = Vec<String>;
-
-struct ChatState {
-    rooms: HashMap<String, MessageList>,
+struct InnerState {
+    age: u32,
+    name: String,
 }
 
-impl ChatState {
-    fn room(&mut self, room: String) -> &mut MessageList {
-        self
-            .rooms
-            .entry(room)
-            .or_insert_with(|| Vec::new())
+#[derive(Clone, PartialEq, Eq, Hash)]
+pub struct Person(GhostActor<InnerState>);
+
+impl Person {
+    pub fn new(age: u32, name: String) -> Self {
+        let (actor, driver) = GhostActor::new(InnerState { age, name });
+        tokio::task::spawn(driver);
+        Self(actor)
     }
 
-    fn post(&mut self, room: String, message: String) {
-        self.room(room).push(message);
-    }
-
-    fn read(&mut self, room: String) -> MessageList {
-        self.room(room).clone()
-    }
-}
-
-#[derive(Clone)]
-pub struct ChatServer(GhostActor<ChatState>);
-
-impl ChatServer {
-    pub async fn post(&self, room: &str, message: &str) {
-        let room = room.to_string();
-        let message = message.to_string();
-        self.0.invoke(move |state| {
-            state.post(room, message);
-            Result::<(), GhostError>::Ok(())
-        }).await.unwrap();
-    }
-
-    pub async fn read(&self, room: &str) -> Vec<String> {
-        let room = room.to_string();
-        self.0.invoke(move |state| {
-            let result = state.read(room);
-            Result::<Vec<String>, GhostError>::Ok(result)
+    pub async fn birthday(&self) -> String {
+        self.0.invoke(|inner| {
+            inner.age += 1;
+            let msg = format!(
+                "Happy birthday {}, you are {} years old.",
+                inner.name,
+                inner.age,
+            );
+            <Result::<String, GhostError>>::Ok(msg)
         }).await.unwrap()
     }
 }
 
-#[tokio::main]
-async fn main() {
-    let state = ChatState { rooms: HashMap::new() };
-
-    let (actor, driver) = GhostActor::new(state);
-    tokio::task::spawn(driver);
-
-    let server1 = ChatServer(actor);
-    let server2 = server1.clone();
-
-    futures::future::join_all(vec![
-        server1.post("fruit", "banana"),
-        server2.post("fruit", "apple"),
-    ]).await;
-
-    let mut res = server1.read("fruit").await;
-    res.sort();
-    assert_eq!(
-        vec!["apple".to_string(), "banana".to_string()],
-        res,
-    );
-}
+let bob = Person::new(42, "Bob".to_string());
+assert_eq!(
+    "Happy birthday Bob, you are 43 years old.",
+    &bob.birthday().await,
+);
 ```
+
+## Using traits (and GhostFuture) to provide dynamic actor types:
+
+```rust
+pub trait Fruit {
+    // until async traits are available in rust, you can use GhostFuture
+    fn eat(&self) -> GhostFuture<String, GhostError>;
+
+    // allows implementing clone on BoxFruit
+    fn box_clone(&self) -> BoxFruit;
+}
+
+pub type BoxFruit = Box<dyn Fruit>;
+
+impl Clone for BoxFruit {
+    fn clone(&self) -> Self {
+        self.box_clone()
+    }
+}
+
+#[derive(Clone, PartialEq, Eq, Hash)]
+pub struct Banana(GhostActor<u32>);
+
+impl Banana {
+    pub fn new() -> BoxFruit {
+        let (actor, driver) = GhostActor::new(0);
+        tokio::task::spawn(driver);
+        Box::new(Self(actor))
+    }
+}
+
+impl Fruit for Banana {
+    fn eat(&self) -> GhostFuture<String, GhostError> {
+        let fut = self.0.invoke(|count| {
+            *count += 1;
+            <Result<u32, GhostError>>::Ok(*count)
+        });
+
+        // 'resp()' is a helper function that builds a GhostFuture
+        // from any other future that has a matching Output.
+        resp(async move {
+            Ok(format!("ate {} bananas", fut.await.unwrap()))
+        })
+    }
+
+    fn box_clone(&self) -> BoxFruit {
+        Box::new(self.clone())
+    }
+}
+
+// we could implement a similar 'Apple' struct
+// that could be interchanged here:
+let fruit: BoxFruit = Banana::new();
+assert_eq!("ate 1 bananas", &fruit.eat().await.unwrap());
+```
+
+## Custom GhostActor error types:
+
+The `GhostActor::invoke()` function takes a generic error type.
+The only requirement is that it must implement `From<GhostError>`:
+
+```rust
+#[derive(Debug)]
+struct MyError;
+impl std::error::Error for MyError {}
+impl std::fmt::Display for MyError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{:?}", self)
+    }
+}
+impl From<GhostError> for MyError {
+    fn from(_: GhostError) -> Self {
+        Self
+    }
+}
+
+let (actor, driver) = GhostActor::new(42_u32);
+tokio::task::spawn(driver);
+assert_eq!(42, actor.invoke(|inner| {
+    <Result<u32, MyError>>::Ok(*inner)
+}).await.unwrap());
+```
+
+## Code Examples:
+
+- [Bounce](https://github.com/holochain/ghost_actor/blob/master/crates/ghost_actor/examples/bounce.rs): `cargo run --example bounce`
