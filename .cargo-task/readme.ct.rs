@@ -37,19 +37,8 @@ fn main() {
     let mut cmd = env.cargo();
     cmd
         .arg("readme")
-        .arg("-r")
-        .arg("crates/ghost_actor")
         .arg("--output")
         .arg("README.md");
-    ct_check_fatal!(env.exec(cmd));
-
-    let mut cmd = env.cargo();
-    cmd
-        .arg("readme")
-        .arg("-r")
-        .arg("crates/ghost_actor")
-        .arg("--output")
-        .arg("../../README.md");
     ct_check_fatal!(env.exec(cmd));
 
     if std::env::var_os("CI").is_some() {
