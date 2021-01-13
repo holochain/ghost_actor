@@ -56,7 +56,7 @@ fn main() {
         let mut cmd = std::process::Command::new("git");
         cmd
             .arg("diff")
-            .arg("--exit_code");
+            .arg("--exit-code");
         ct_check_fatal!(env.exec(cmd));
     }
 }

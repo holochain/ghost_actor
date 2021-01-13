@@ -3,36 +3,75 @@ name: test
 on: [ push ]
 
 jobs:
-
- test:
-  runs-on: ${{ matrix.os }}
-  strategy:
-   matrix:
-    os: [
-     ubuntu-latest,
-     macos-latest,
-     #windows-latest,
-    ]
-    toolchain: [
-     stable,
-     #beta,
-     #nightly,
-    ]
-  steps:
-   - uses: actions/checkout@v2
-
-   - uses: actions-rs/toolchain@v1
-     with:
-      toolchain: ${{ matrix.toolchain }}
-      components: rustfmt, clippy
-
-   # install cargo-task
-   - uses: actions-rs/cargo@v1
-     with:
-      command: install
-      args: cargo-task
-
-   # run all the tests
-   - uses: actions-rs/cargo@v1
-     with:
-      command: task
+  clippy:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [
+          ubuntu-latest,
+          macos-latest,
+          #windows-latest,
+          ]
+        toolchain: [stable]
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions-rs/toolchain@v1
+        with:
+          toolchain: ${{ matrix.toolchain }}
+          components: rustfmt, clippy
+      - uses: actions-rs/cargo@v1
+        with:
+          command: install
+          args: cargo-task
+      - uses: actions-rs/cargo@v1
+        with:
+          command: task
+          args: clippy
+  test:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [
+          ubuntu-latest,
+          macos-latest,
+          #windows-latest,
+          ]
+        toolchain: [stable]
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions-rs/toolchain@v1
+        with:
+          toolchain: ${{ matrix.toolchain }}
+          components: rustfmt, clippy
+      - uses: actions-rs/cargo@v1
+        with:
+          command: install
+          args: cargo-task
+      - uses: actions-rs/cargo@v1
+        with:
+          command: task
+          args: test
+  readme:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [
+          ubuntu-latest,
+          macos-latest,
+          #windows-latest,
+          ]
+        toolchain: [stable]
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions-rs/toolchain@v1
+        with:
+          toolchain: ${{ matrix.toolchain }}
+          components: rustfmt, clippy
+      - uses: actions-rs/cargo@v1
+        with:
+          command: install
+          args: cargo-task
+      - uses: actions-rs/cargo@v1
+        with:
+          command: task
+          args: readme
