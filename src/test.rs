@@ -2,6 +2,19 @@ use crate::*;
 use tracing::Instrument;
 
 #[tokio::test]
+async fn debuggable() {
+    struct Bob;
+    let b = Box::new(Bob);
+    let (a, _) = GhostActor::new(b);
+    let dbg = format!("{:?}", a);
+    assert!(dbg.contains("GhostActor {"));
+    assert!(dbg.contains("type:"));
+    assert!(dbg.contains("hash:"));
+    assert!(dbg.contains("Bob"));
+    assert!(dbg.contains("Box"));
+}
+
+#[tokio::test]
 async fn caller_send_drop_no_panic() {
     observability::test_run().ok();
     let (msg, driver) = GhostActor::new("".to_string());

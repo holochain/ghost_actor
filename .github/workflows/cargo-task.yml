@@ -10,16 +10,20 @@ jobs:
         os: [ubuntu-latest]
         toolchain: [stable]
     steps:
-      - uses: actions/checkout@v2
-      - uses: actions-rs/toolchain@v1
+      - name: Checkout
+        uses: actions/checkout@v2
+      - name: Rust Toolchain
+        uses: actions-rs/toolchain@v1
         with:
           toolchain: ${{ matrix.toolchain }}
           components: rustfmt
-      - uses: actions-rs/cargo@v1
+      - name: Install Cargo Task
+        uses: actions-rs/cargo@v1
         with:
           command: install
           args: cargo-task
-      - uses: actions-rs/cargo@v1
+      - name: cargo task fmt-check
+        uses: actions-rs/cargo@v1
         with:
           command: task
           args: fmt-check
@@ -30,16 +34,20 @@ jobs:
         os: [ubuntu-latest]
         toolchain: [stable]
     steps:
-      - uses: actions/checkout@v2
-      - uses: actions-rs/toolchain@v1
+      - name: Checkout
+        uses: actions/checkout@v2
+      - name: Rust Toolchain
+        uses: actions-rs/toolchain@v1
         with:
           toolchain: ${{ matrix.toolchain }}
           components: clippy
-      - uses: actions-rs/cargo@v1
+      - name: Install Cargo Task
+        uses: actions-rs/cargo@v1
         with:
           command: install
           args: cargo-task
-      - uses: actions-rs/cargo@v1
+      - name: cargo task clippy
+        uses: actions-rs/cargo@v1
         with:
           command: task
           args: clippy
@@ -54,15 +62,19 @@ jobs:
         ]
         toolchain: [stable]
     steps:
-      - uses: actions/checkout@v2
-      - uses: actions-rs/toolchain@v1
+      - name: Checkout
+        uses: actions/checkout@v2
+      - name: Rust Toolchain
+        uses: actions-rs/toolchain@v1
         with:
           toolchain: ${{ matrix.toolchain }}
-      - uses: actions-rs/cargo@v1
+      - name: Install Cargo Task
+        uses: actions-rs/cargo@v1
         with:
           command: install
           args: cargo-task
-      - uses: actions-rs/cargo@v1
+      - name: cargo task test
+        uses: actions-rs/cargo@v1
         with:
           command: task
           args: test
@@ -73,15 +85,19 @@ jobs:
         os: [ubuntu-latest]
         toolchain: [stable]
     steps:
-      - uses: actions/checkout@v2
-      - uses: actions-rs/toolchain@v1
+      - name: Checkout
+        uses: actions/checkout@v2
+      - name: Rust Toolchain
+        uses: actions-rs/toolchain@v1
         with:
           toolchain: ${{ matrix.toolchain }}
-      - uses: actions-rs/cargo@v1
+      - name: Install Cargo Task
+        uses: actions-rs/cargo@v1
         with:
           command: install
           args: cargo-task
-      - uses: actions-rs/cargo@v1
+      - name: cargo task readme
+        uses: actions-rs/cargo@v1
         with:
           command: task
           args: readme
