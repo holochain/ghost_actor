@@ -139,6 +139,17 @@ impl<T: 'static + Send> AsGhostActor for GhostActor<T> {
     }
 }
 
+impl<T: 'static + Send> std::fmt::Debug for GhostActor<T> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut hasher = std::collections::hash_map::DefaultHasher::new();
+        self.__hash_actor(&mut hasher);
+        f.debug_struct("GhostActor")
+            .field("type", &std::any::type_name::<T>())
+            .field("hash", &std::hash::Hasher::finish(&hasher))
+            .finish()
+    }
+}
+
 impl<T: 'static + Send> std::clone::Clone for GhostActor<T> {
     fn clone(&self) -> Self {
         Self(self.0.clone())

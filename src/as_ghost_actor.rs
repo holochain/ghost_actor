@@ -26,7 +26,7 @@ pub mod ghost_actor_trait {
     /// - potential alternate ghost_actor implementations
     /// - usage of `impl AsGhostActor` in functions / generics
     /// - type erasure via `BoxGhostActor`
-    pub trait AsGhostActor: 'static + Send + Sync {
+    pub trait AsGhostActor: 'static + Send + Sync + std::fmt::Debug {
         /// Raw type-erased invoke function.
         /// You probably want to use a higher-level function
         /// with better type safety.
@@ -75,7 +75,7 @@ pub mod ghost_actor_trait {
 }
 
 /// Newtype wrapping boxed trait-object version of GhostActor.
-#[derive(Clone, Eq)]
+#[derive(Debug, Clone, Eq)]
 pub struct BoxGhostActor(pub Box<dyn AsGhostActor>);
 
 impl std::cmp::PartialEq for BoxGhostActor {
