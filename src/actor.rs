@@ -49,6 +49,19 @@ impl<T: 'static + Send> GhostActor<T> {
         BoxGhostActor(self.__box_clone())
     }
 
+    /// Push state read/mutation logic onto actor queue for processing,
+    /// uses `invoke()` internally - but expects a future to be returned
+    /// which is `await`ed internally to be more ergonomic.
+    pub fn invoke_async<R, E, F>(&self, invoke: F) -> GhostFuture<R, E>
+    where
+        R: 'static + Send,
+        E: 'static + From<GhostError> + Send,
+        F: FnOnce(&mut T) -> GhostFuture<R, E> + 'static + Send,
+    {
+        let fut = self.invoke(move |inner| Ok(invoke(inner)));
+        resp(async move { fut.await?.await })
+    }
+
     /// Push state read/mutation logic onto actor queue for processing.
     pub fn invoke<R, E, F>(&self, invoke: F) -> GhostFuture<R, E>
     where
