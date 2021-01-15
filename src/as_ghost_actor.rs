@@ -26,7 +26,7 @@ pub mod ghost_actor_trait {
     /// - potential alternate ghost_actor implementations
     /// - usage of `impl AsGhostActor` in functions / generics
     /// - type erasure via `BoxGhostActor`
-    pub trait AsGhostActor: 'static + Send + Sync + std::fmt::Debug {
+    pub trait AsGhostActor: 'static + Send + Sync {
         /// Raw type-erased invoke function.
         /// You probably want to use a higher-level function
         /// with better type safety.
@@ -53,7 +53,6 @@ pub mod ghost_actor_trait {
 /// for example, placing differing typed BoxGhostActor instances in a
 /// HashSet<BoxGhostActor> if you have some external mechanism for determining
 /// type `T` when calling `invoke()`.
-#[derive(Debug)]
 pub struct BoxGhostActor(pub Box<dyn AsGhostActor>);
 ghost_box_new_type!(BoxGhostActor);
 
