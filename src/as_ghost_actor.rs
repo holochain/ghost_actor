@@ -35,15 +35,6 @@ pub mod ghost_actor_trait {
             invoke: RawInvokeClosure,
         ) -> GhostFuture<Box<dyn std::any::Any + 'static + Send>, GhostError>;
 
-        /// `BoxGhostActor::clone()` uses this clone internally.
-        fn __box_clone(&self) -> BoxGhostActor;
-
-        /// `impl PartialEq for BoxGhostActor` uses this function internally.
-        fn __is_same_actor(&self, o: &dyn std::any::Any) -> bool;
-
-        /// `impl Hash for BoxGhostActor` uses this function internally.
-        fn __hash_actor(&self, hasher: &mut dyn std::hash::Hasher);
-
         /// Returns `true` if the channel is still connected to the actor task.
         fn __is_active(&self) -> bool;
 
@@ -51,51 +42,22 @@ pub mod ghost_actor_trait {
         /// This will result in the task being dropped once all pending invocations
         /// have been processed.
         fn __shutdown(&self);
-    }
 
-    impl Clone for Box<dyn AsGhostActor> {
-        fn clone(&self) -> Self {
-            self.__box_clone().0
-        }
+        ghost_box_trait_fns!(AsGhostActor);
     }
-
-    impl std::cmp::PartialEq for Box<dyn AsGhostActor> {
-        fn eq(&self, o: &Self) -> bool {
-            self.__is_same_actor(o)
-        }
-    }
-
-    impl std::cmp::Eq for Box<dyn AsGhostActor> {}
-
-    impl std::hash::Hash for Box<dyn AsGhostActor> {
-        fn hash<Hasher: std::hash::Hasher>(&self, state: &mut Hasher) {
-            self.__hash_actor(state);
-        }
-    }
+    ghost_box_trait!(AsGhostActor);
 }
 
-/// Newtype wrapping boxed trait-object version of GhostActor.
-#[derive(Debug, Clone, Eq)]
+/// Newtype wrapping boxed type-erased trait-object version of GhostActor.
+/// Prefer using the strongly typed `GhostActor<T>`. This boxed type allows,
+/// for example, placing differing typed BoxGhostActor instances in a
+/// HashSet<BoxGhostActor> if you have some external mechanism for determining
+/// type `T` when calling `invoke()`.
+#[derive(Debug)]
 pub struct BoxGhostActor(pub Box<dyn AsGhostActor>);
-
-impl std::cmp::PartialEq for BoxGhostActor {
-    fn eq(&self, o: &Self) -> bool {
-        self.0.eq(&(o.0))
-    }
-}
-
-impl std::hash::Hash for BoxGhostActor {
-    fn hash<Hasher: std::hash::Hasher>(&self, state: &mut Hasher) {
-        self.0.hash(state);
-    }
-}
+ghost_box_new_type!(BoxGhostActor);
 
 impl BoxGhostActor {
-    /// Get a type-erased BoxGhostActor version of this handle.
-    pub fn to_boxed(&self) -> BoxGhostActor {
-        self.clone()
-    }
-
     /// Push state read/mutation logic onto actor queue for processing.
     pub fn invoke<T, R, E, F>(&self, invoke: F) -> GhostFuture<R, E>
     where
@@ -157,18 +119,6 @@ impl AsGhostActor for BoxGhostActor {
         self.0.__invoke(invoke)
     }
 
-    fn __box_clone(&self) -> BoxGhostActor {
-        self.0.__box_clone()
-    }
-
-    fn __is_same_actor(&self, o: &dyn std::any::Any) -> bool {
-        self.0.__is_same_actor(o)
-    }
-
-    fn __hash_actor(&self, hasher: &mut dyn std::hash::Hasher) {
-        self.0.__hash_actor(hasher);
-    }
-
     fn __is_active(&self) -> bool {
         self.0.__is_active()
     }
@@ -176,4 +126,6 @@ impl AsGhostActor for BoxGhostActor {
     fn __shutdown(&self) {
         self.0.__shutdown();
     }
+
+    ghost_box_trait_impl_fns!(AsGhostActor);
 }
