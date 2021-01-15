@@ -12,7 +12,7 @@
 /// }
 /// ghost_box_trait!(MyTrait);
 ///
-/// #[derive(Clone, PartialEq, Eq, Hash)]
+/// #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 /// pub struct MyConcrete;
 /// impl MyTrait for MyConcrete {
 ///     ghost_box_trait_impl_fns!(MyTrait);
@@ -20,12 +20,21 @@
 ///
 /// pub struct BoxMyTrait(pub Box<dyn MyTrait>);
 ///
-/// // BoxMyTrait will now implement `Clone + PartialEq + Eq + Hash`
+/// // BoxMyTrait will now implement `Debug + Clone + PartialEq + Eq + Hash`
 /// ghost_box_new_type!(BoxMyTrait);
 /// ```
 #[macro_export]
 macro_rules! ghost_box_trait {
     ($trait:ident) => {
+        impl ::std::fmt::Debug for ::std::boxed::Box<dyn $trait> {
+            fn fmt(
+                &self,
+                f: &mut ::std::fmt::Formatter<'_>,
+            ) -> ::std::fmt::Result {
+                self.__box_debug(f)
+            }
+        }
+
         impl ::std::clone::Clone for ::std::boxed::Box<dyn $trait> {
             fn clone(&self) -> Self {
                 self.__box_clone()
@@ -62,7 +71,7 @@ macro_rules! ghost_box_trait {
 /// }
 /// ghost_box_trait!(MyTrait);
 ///
-/// #[derive(Clone, PartialEq, Eq, Hash)]
+/// #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 /// pub struct MyConcrete;
 /// impl MyTrait for MyConcrete {
 ///     ghost_box_trait_impl_fns!(MyTrait);
@@ -70,12 +79,18 @@ macro_rules! ghost_box_trait {
 ///
 /// pub struct BoxMyTrait(pub Box<dyn MyTrait>);
 ///
-/// // BoxMyTrait will now implement `Clone + PartialEq + Eq + Hash`
+/// // BoxMyTrait will now implement `Debug + Clone + PartialEq + Eq + Hash`
 /// ghost_box_new_type!(BoxMyTrait);
 /// ```
 #[macro_export]
 macro_rules! ghost_box_trait_fns {
     ($trait:ident) => {
+        /// Allows Debug from Box<dyn> trait objects.
+        fn __box_debug(
+            &self,
+            f: &mut ::std::fmt::Formatter<'_>,
+        ) -> ::std::fmt::Result;
+
         /// Allows Clone from Box<dyn> trait objects.
         fn __box_clone(&self) -> ::std::boxed::Box<dyn $trait>;
 
@@ -101,7 +116,7 @@ macro_rules! ghost_box_trait_fns {
 /// }
 /// ghost_box_trait!(MyTrait);
 ///
-/// #[derive(Clone, PartialEq, Eq, Hash)]
+/// #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 /// pub struct MyConcrete;
 /// impl MyTrait for MyConcrete {
 ///     ghost_box_trait_impl_fns!(MyTrait);
@@ -109,12 +124,20 @@ macro_rules! ghost_box_trait_fns {
 ///
 /// pub struct BoxMyTrait(pub Box<dyn MyTrait>);
 ///
-/// // BoxMyTrait will now implement `Clone + PartialEq + Eq + Hash`
+/// // BoxMyTrait will now implement `Debug + Clone + PartialEq + Eq + Hash`
 /// ghost_box_new_type!(BoxMyTrait);
 /// ```
 #[macro_export]
 macro_rules! ghost_box_trait_impl_fns {
     ($trait:ident) => {
+        #[inline]
+        fn __box_debug(
+            &self,
+            f: &mut ::std::fmt::Formatter<'_>,
+        ) -> ::std::fmt::Result {
+            ::std::fmt::Debug::fmt(self, f)
+        }
+
         #[inline]
         fn __box_clone(&self) -> Box<dyn $trait> {
             ::std::boxed::Box::new(::std::clone::Clone::clone(&*self))
@@ -150,7 +173,7 @@ macro_rules! ghost_box_trait_impl_fns {
 /// }
 /// ghost_box_trait!(MyTrait);
 ///
-/// #[derive(Clone, PartialEq, Eq, Hash)]
+/// #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 /// pub struct MyConcrete;
 /// impl MyTrait for MyConcrete {
 ///     ghost_box_trait_impl_fns!(MyTrait);
@@ -158,12 +181,21 @@ macro_rules! ghost_box_trait_impl_fns {
 ///
 /// pub struct BoxMyTrait(pub Box<dyn MyTrait>);
 ///
-/// // BoxMyTrait will now implement `Clone + PartialEq + Eq + Hash`
+/// // BoxMyTrait will now implement `Debug + Clone + PartialEq + Eq + Hash`
 /// ghost_box_new_type!(BoxMyTrait);
 /// ```
 #[macro_export]
 macro_rules! ghost_box_new_type {
     ($newtype:ident) => {
+        impl ::std::fmt::Debug for $newtype {
+            fn fmt(
+                &self,
+                f: &mut ::std::fmt::Formatter<'_>,
+            ) -> ::std::fmt::Result {
+                ::std::fmt::Debug::fmt(&self.0, f)
+            }
+        }
+
         impl ::std::clone::Clone for $newtype {
             fn clone(&self) -> Self {
                 Self(::std::clone::Clone::clone(&self.0))

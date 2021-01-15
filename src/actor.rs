@@ -122,6 +122,10 @@ impl<T: 'static + Send> AsGhostActor for GhostActor<T> {
         GhostActor::shutdown(self);
     }
 
+    fn __box_debug(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        std::fmt::Debug::fmt(self, f)
+    }
+
     fn __box_clone(&self) -> Box<dyn AsGhostActor> {
         Box::new(self.clone())
     }
