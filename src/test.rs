@@ -2,7 +2,48 @@ use crate::*;
 use tracing::Instrument;
 
 #[tokio::test]
+async fn concrete_invoke_async() {
+    observability::test_run().ok();
+
+    let (actor, driver) = GhostActor::new(42_u8);
+    tokio::task::spawn(driver);
+
+    assert_eq!(
+        42,
+        actor
+            .invoke_async(|i| {
+                let out = *i;
+                resp(async move { <Result<u8, GhostError>>::Ok(out) })
+            })
+            .await
+            .unwrap()
+    );
+}
+
+#[tokio::test]
+async fn box_invoke_async() {
+    observability::test_run().ok();
+
+    let (actor, driver) = GhostActor::new(42_u8);
+    tokio::task::spawn(driver);
+    let actor = actor.to_boxed();
+
+    assert_eq!(
+        42,
+        actor
+            .invoke_async(|i| {
+                let out = *i;
+                resp(async move { <Result<u8, GhostError>>::Ok(out) })
+            })
+            .await
+            .unwrap()
+    );
+}
+
+#[tokio::test]
 async fn debuggable() {
+    observability::test_run().ok();
+
     struct Bob;
     let b = Box::new(Bob);
     let (a, _) = GhostActor::new(b);
@@ -17,6 +58,7 @@ async fn debuggable() {
 #[tokio::test]
 async fn caller_send_drop_no_panic() {
     observability::test_run().ok();
+
     let (msg, driver) = GhostActor::new("".to_string());
     tokio::task::spawn(driver);
 

@@ -57,6 +57,20 @@ pub struct BoxGhostActor(pub Box<dyn AsGhostActor>);
 ghost_box_new_type!(BoxGhostActor);
 
 impl BoxGhostActor {
+    /// Push state read/mutation logic onto actor queue for processing,
+    /// uses `invoke()` internally - but expects a future to be returned
+    /// which is `await`ed internally to be more ergonomic.
+    pub fn invoke_async<T, R, E, F>(&self, invoke: F) -> GhostFuture<R, E>
+    where
+        T: 'static + Send,
+        R: 'static + Send,
+        E: 'static + From<GhostError> + Send,
+        F: FnOnce(&mut T) -> GhostFuture<R, E> + 'static + Send,
+    {
+        let fut = self.invoke(move |inner| Ok(invoke(inner)));
+        resp(async move { fut.await?.await })
+    }
+
     /// Push state read/mutation logic onto actor queue for processing.
     pub fn invoke<T, R, E, F>(&self, invoke: F) -> GhostFuture<R, E>
     where
