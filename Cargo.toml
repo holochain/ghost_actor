@@ -1,6 +1,6 @@
 [package]
 name = "ghost_actor"
-version = "0.4.0-alpha.1"
+version = "0.4.0-alpha.2"
 authors = ["Holochain Core Dev Team <devcore@holochain.org>"]
 edition = "2018"
 description = "GhostActor makes it simple, ergonomic, and idiomatic to implement async / concurrent code using an Actor model."

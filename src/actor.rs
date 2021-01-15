@@ -46,7 +46,7 @@ impl<T: 'static + Send> GhostActor<T> {
 
     /// Get a type-erased BoxGhostActor version of this handle.
     pub fn to_boxed(&self) -> BoxGhostActor {
-        self.__box_clone()
+        BoxGhostActor(self.__box_clone())
     }
 
     /// Push state read/mutation logic onto actor queue for processing.
@@ -114,22 +114,6 @@ impl<T: 'static + Send> AsGhostActor for GhostActor<T> {
         resp(async move { fut.await })
     }
 
-    fn __box_clone(&self) -> BoxGhostActor {
-        BoxGhostActor(Box::new(self.clone()))
-    }
-
-    fn __is_same_actor(&self, o: &dyn std::any::Any) -> bool {
-        let o: &GhostActor<T> = match std::any::Any::downcast_ref(o) {
-            None => return false,
-            Some(o) => o,
-        };
-        self.0.same_receiver(&o.0)
-    }
-
-    fn __hash_actor(&self, hasher: &mut dyn std::hash::Hasher) {
-        self.0.hash_receiver(&mut Box::new(hasher));
-    }
-
     fn __is_active(&self) -> bool {
         GhostActor::is_active(self)
     }
@@ -137,12 +121,28 @@ impl<T: 'static + Send> AsGhostActor for GhostActor<T> {
     fn __shutdown(&self) {
         GhostActor::shutdown(self);
     }
+
+    fn __box_clone(&self) -> Box<dyn AsGhostActor> {
+        Box::new(self.clone())
+    }
+
+    fn __box_eq(&self, o: &dyn std::any::Any) -> bool {
+        let o: &GhostActor<T> = match std::any::Any::downcast_ref(o) {
+            None => return false,
+            Some(o) => o,
+        };
+        self.0.same_receiver(&o.0)
+    }
+
+    fn __box_hash(&self, hasher: &mut dyn std::hash::Hasher) {
+        self.0.hash_receiver(&mut Box::new(hasher));
+    }
 }
 
 impl<T: 'static + Send> std::fmt::Debug for GhostActor<T> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let mut hasher = std::collections::hash_map::DefaultHasher::new();
-        self.__hash_actor(&mut hasher);
+        self.__box_hash(&mut hasher);
         f.debug_struct("GhostActor")
             .field("type", &std::any::type_name::<T>())
             .field("hash", &std::hash::Hasher::finish(&hasher))

@@ -188,6 +188,9 @@ pub mod dependencies {
     pub use tracing;
 }
 
+#[macro_use]
+mod box_macros;
+pub use box_macros::*;
 mod error;
 pub use error::*;
 mod as_ghost_actor;
