@@ -13,7 +13,7 @@ async fn concrete_invoke_async() {
         actor
             .invoke_async(|i| {
                 let out = *i;
-                resp(async move { <Result<u8, GhostError>>::Ok(out) })
+                Ok(resp(async move { <Result<u8, GhostError>>::Ok(out) }))
             })
             .await
             .unwrap()
@@ -33,7 +33,7 @@ async fn box_invoke_async() {
         actor
             .invoke_async(|i| {
                 let out = *i;
-                resp(async move { <Result<u8, GhostError>>::Ok(out) })
+                Ok(resp(async move { <Result<u8, GhostError>>::Ok(out) }))
             })
             .await
             .unwrap()
