@@ -65,10 +65,10 @@ impl BoxGhostActor {
         T: 'static + Send,
         R: 'static + Send,
         E: 'static + From<GhostError> + Send,
-        F: FnOnce(&mut T) -> GhostFuture<R, E> + 'static + Send,
+        F: FnOnce(&mut T) -> Result<GhostFuture<R, E>, E> + 'static + Send,
     {
         let fut = self.invoke(move |inner| Ok(invoke(inner)));
-        resp(async move { fut.await?.await })
+        resp(async move { fut.await??.await })
     }
 
     /// Push state read/mutation logic onto actor queue for processing.
