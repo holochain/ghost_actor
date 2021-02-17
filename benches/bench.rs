@@ -127,6 +127,15 @@ criterion_main!(benches);
 
 fn simple_bench(bench: &mut Criterion) {
     let _g = observability::test_run().ok();
+    let (_, write_len, read_len) = std::env::var_os("GHOST_BENCH").map(|s| {
+        let s = s.to_string_lossy();
+        s.split(',').map(|s| s.parse::<usize>().expect("GHOST_BENCH must be numbers. <number_of_concurrent> <read_len> <write_len>")).collect::<Vec<_>>()
+    }).map(|s|{
+        let mut s = s.into_iter();
+        (s.next().unwrap_or(1),
+        s.next().unwrap_or(100) as u64,
+        s.next().unwrap_or(100) as u64)
+    }).unwrap_or((0, 0, 0));
 
     let runtime = rt();
 
@@ -134,30 +143,53 @@ fn simple_bench(bench: &mut Criterion) {
     let lock = runtime.block_on(banana_lock());
 
     let mut group = bench.benchmark_group("simple_bench");
-    group.bench_function(BenchmarkId::new("banana", "eat"), |b| {
-        b.iter(|| {
-            runtime.block_on(async { actor.eat(0, 0).await.unwrap() });
-        });
-    });
-    group.bench_function(BenchmarkId::new("lock", "eat"), |b| {
-        b.iter(|| {
-            runtime.block_on(async { lock.eat(0, 0).await });
-        });
-    });
-    group.bench_function(BenchmarkId::new("banana", "look"), |b| {
-        b.iter(|| {
-            runtime.block_on(async {
-                actor.look(0).await.unwrap();
+    group.bench_function(
+        BenchmarkId::new(
+            "banana",
+            format!("eat_w_{}_r_{}", write_len, read_len),
+        ),
+        |b| {
+            b.iter(|| {
+                runtime.block_on(async {
+                    actor.eat(write_len, read_len).await.unwrap()
+                });
             });
-        });
-    });
-    group.bench_function(BenchmarkId::new("lock", "look"), |b| {
-        b.iter(|| {
-            runtime.block_on(async {
-                lock.look(0).await;
+        },
+    );
+    group.bench_function(
+        BenchmarkId::new("lock", format!("eat_w_{}_r_{}", write_len, read_len)),
+        |b| {
+            b.iter(|| {
+                runtime.block_on(async { lock.eat(write_len, read_len).await });
             });
-        });
-    });
+        },
+    );
+    group.bench_function(
+        BenchmarkId::new(
+            "banana",
+            format!("look_w_{}_r_{}", write_len, read_len),
+        ),
+        |b| {
+            b.iter(|| {
+                runtime.block_on(async {
+                    actor.look(read_len).await.unwrap();
+                });
+            });
+        },
+    );
+    group.bench_function(
+        BenchmarkId::new(
+            "lock",
+            format!("look_w_{}_r_{}", write_len, read_len),
+        ),
+        |b| {
+            b.iter(|| {
+                runtime.block_on(async {
+                    lock.look(read_len).await;
+                });
+            });
+        },
+    );
     runtime.block_on(async move { drop(actor) });
 }
 
