@@ -6,9 +6,14 @@ edition = "2018"
 # don't fill out this Cargo.toml - ensures it can't accidentally be published
 
 [dependencies]
-ghost_actor = { path = "../ghost_actor" }
+ghost_actor = { path = "../ghost_actor", features = ["test_utils"] }
+mockall = { version = "0.10.2", optional = true }
 thiserror = "1"
 
 [dev-dependencies]
 tokio = { version = "0.2", features = ["full"] }
 tracing-subscriber = "0.2"
+
+[features]
+default = ["test_utils"]
+test_utils = ["mockall"]

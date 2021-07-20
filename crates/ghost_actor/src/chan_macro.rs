@@ -195,6 +195,7 @@ macro_rules! ghost_chan {
         )*]
     ) => {
         $crate::dependencies::paste::item! {
+            #[cfg_attr(feature = "test_utils", $crate::dependencies::mockall::automock)]
             $(#[$ameta])*
             $($avis)* trait [< $aname Handler >]: $crate::GhostHandler<$aname> {
                 $(
@@ -204,6 +205,12 @@ macro_rules! ghost_chan {
                     ) -> [< $aname HandlerResult >]<$rret>;
                 )*
             }
+
+            #[cfg(feature = "test_utils")]
+            impl $crate::GhostControlHandler for [< Mock $aname Handler >] {}
+
+            #[cfg(feature = "test_utils")]
+            impl $crate::GhostHandler<[< $aname >]> for [< Mock $aname Handler >] {}
         }
     };
 

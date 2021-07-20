@@ -34,3 +34,14 @@ crate::ghost_chan! {
         fn two_inputs_two_outputs(i: u32, j: u32) -> (u32, u32);
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn test() {
+        // can we use mocks?
+        let _m = MockMyActorHandler::new();
+    }
+}
