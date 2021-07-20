@@ -74,7 +74,7 @@ impl TickActorHandler for TickImpl {
                     break;
                 }
 
-                tokio::time::delay_for(std::time::Duration::from_millis(
+                tokio::time::sleep(std::time::Duration::from_millis(
                     interval_ms,
                 ))
                 .await;
@@ -126,5 +126,5 @@ async fn main() {
     tokio::task::spawn(builder.spawn(ParentImpl));
 
     // wait for a bit to see tick events happen
-    tokio::time::delay_for(std::time::Duration::from_millis(20)).await;
+    tokio::time::sleep(std::time::Duration::from_millis(20)).await;
 }

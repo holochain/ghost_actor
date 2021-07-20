@@ -348,6 +348,7 @@ impl GhostActorState {
         )
     }
 
+    #[allow(clippy::async_yields_async)]
     pub fn push_shutdown_receiver(
         &self,
     ) -> must_future::MustBoxFuture<

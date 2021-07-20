@@ -256,6 +256,8 @@
 /// Re-exported dependencies to help with macro references.
 pub mod dependencies {
     pub use futures;
+    #[cfg(feature = "test_utils")]
+    pub use mockall;
     pub use must_future;
     pub use observability;
     pub use paste;

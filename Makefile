@@ -21,7 +21,7 @@ publish: tools
 test: tools
 	$(ENV) cargo fmt -- --check
 	$(ENV) cargo clippy
-	$(ENV) RUST_BACKTRACE=1 cargo test
+	$(ENV) RUST_BACKTRACE=1 cargo test --features test_utils
 	$(ENV) cargo readme -r crates/ghost_actor -o README.md
 	$(ENV) cargo readme -r crates/ghost_actor -o ../../README.md
 	@if [ "${CI}x" != "x" ]; then git diff --exit-code; fi

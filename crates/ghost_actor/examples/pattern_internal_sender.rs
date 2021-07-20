@@ -84,7 +84,7 @@ impl MyActorApiHandler for MyImpl {
             // simulate differing amounts of work
             // that can be undertaken in parallel
             // without involving `&mut self`
-            tokio::time::delay_for(std::time::Duration::from_millis(
+            tokio::time::sleep(std::time::Duration::from_millis(
                 DELAY_TIME[(start_index % 5) as usize],
             ))
             .await;

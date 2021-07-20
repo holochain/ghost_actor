@@ -196,6 +196,12 @@ mod tests {
         }
     }
 
+    #[cfg(feature = "test_utils")]
+    #[tokio::test]
+    async fn it_can_use_handler_mock() {
+        let _m = MockMyActorHandler::new();
+    }
+
     #[tokio::test]
     async fn it_can_use_eq_on_senders() {
         let (sender_a1, _) = MyActorImpl::spawn().await.unwrap();
