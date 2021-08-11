@@ -88,7 +88,7 @@ mod my_impl {
     }
 }
 
-#[tokio::test(threaded_scheduler)]
+#[tokio::test(flavor = "multi_thread")]
 async fn test_ghost_actor_integration() {
     let sender = my_impl::MyImpl::spawn().await;
 

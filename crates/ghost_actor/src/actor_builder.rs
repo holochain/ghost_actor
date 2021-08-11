@@ -209,7 +209,7 @@ impl<H: GhostControlHandler> GhostActorBuilder<H> {
                     break;
                 }
             }
-            control.state.set_shutdown().await;
+            control.state.mark_shutdown_complete().await;
 
             // finally - invoke the shutdown handler
             //           allows actor to cleanup / do any final triggers
@@ -246,10 +246,11 @@ impl GhostActorControl {
     /// Future completes when the actor is shutdown.
     pub(crate) fn ghost_actor_shutdown(&self) -> GhostFuture<()> {
         let shutdown_recv = self.state.push_shutdown_receiver();
-        self.state.set_pending_shutdown();
+        let state = self.state.clone();
         let mut i_send = self.interupt_send.clone();
         must_future::MustBoxFuture::new(async move {
             let _ = i_send.send(()).await;
+            state.set_pending_shutdown();
             let _ = shutdown_recv.await.await;
             Ok(())
         })
@@ -257,11 +258,14 @@ impl GhostActorControl {
 
     /// Shutdown the actor immediately. All pending tasks will error.
     pub(crate) fn ghost_actor_shutdown_immediate(&self) -> GhostFuture<()> {
+        let shutdown_recv = self.state.push_shutdown_receiver();
+        let state = self.state.clone();
         let mut i_send = self.interupt_send.clone();
-        let shutdown_fut = self.state.set_shutdown();
         must_future::MustBoxFuture::new(async move {
             let _ = i_send.send(()).await;
-            let _ = shutdown_fut.await;
+            state.set_shutdown_immediate();
+            let shutdown_recv = shutdown_recv.await;
+            let _ = shutdown_recv.await;
             Ok(())
         })
     }
@@ -371,7 +375,16 @@ impl GhostActorState {
         );
     }
 
-    pub fn set_shutdown(&self) -> must_future::MustBoxFuture<'static, ()> {
+    pub fn set_shutdown_immediate(&self) {
+        self.0.store(
+            GhostActorStateType::Shutdown as u8,
+            std::sync::atomic::Ordering::SeqCst,
+        );
+    }
+
+    pub fn mark_shutdown_complete(
+        &self,
+    ) -> must_future::MustBoxFuture<'static, ()> {
         self.0.store(
             GhostActorStateType::Shutdown as u8,
             std::sync::atomic::Ordering::SeqCst,
