@@ -248,6 +248,94 @@ impl<E: GhostEvent> GhostChannelReceiver<E>
 {
 }
 
+/// RAII guard for spawning a mock handler that will be dropped appropriately
+/// at the end of a test to trigger any needed expect panics, etc.
+#[cfg(feature = "test_utils")]
+pub struct MockHandler<E, H>
+where
+    E: GhostEvent + GhostDispatch<H>,
+    H: GhostControlHandler + GhostHandler<E>,
+{
+    ghost_sender: GhostSender<E>,
+    chan_sender: futures::channel::mpsc::Sender<E>,
+    driver_fut: Option<futures::future::BoxFuture<'static, ()>>,
+    _phantom: std::marker::PhantomData<&'static H>,
+}
+
+#[cfg(feature = "test_utils")]
+impl<E, H> Drop for MockHandler<E, H>
+where
+    E: GhostEvent + GhostDispatch<H>,
+    H: GhostControlHandler + GhostHandler<E>,
+{
+    fn drop(&mut self) {
+        let fut = self.ghost_sender.ghost_actor_shutdown_immediate();
+        let driver_fut = self.driver_fut.take();
+
+        // this block-on is here for mock testing purposes only.
+        // We need to make sure any panics that are triggered
+        // by the mock implementation are bubbled back up to the test thread.
+        futures::executor::block_on(async move {
+            fut.await.unwrap();
+            if let Some(driver_fut) = driver_fut {
+                driver_fut.await;
+            }
+        });
+    }
+}
+
+#[cfg(feature = "test_utils")]
+impl<E, H> MockHandler<E, H>
+where
+    E: GhostEvent + GhostDispatch<H>,
+    H: GhostControlHandler + GhostHandler<E>,
+{
+    /// Construct & spawn a new actor based on given mock handler.
+    /// See `get_ghost_sender` or `get_chan_sender` for usage.
+    pub async fn spawn<R1, R2, F, S>(handler: H, spawn: S) -> Self
+    where
+        R1: std::fmt::Debug,
+        R2: std::fmt::Debug,
+        F: std::future::Future<Output = Result<Result<(), R1>, R2>>
+            + 'static
+            + Send,
+        S: Fn(futures::future::BoxFuture<'static, Result<(), GhostError>>) -> F,
+    {
+        let builder = crate::actor_builder::GhostActorBuilder::new();
+
+        let ghost_sender =
+            builder.channel_factory().create_channel().await.unwrap();
+
+        let (chan_sender, r) = futures::channel::mpsc::channel(4096);
+
+        builder.channel_factory().attach_receiver(r).await.unwrap();
+
+        let fut = spawn(futures::future::FutureExt::boxed(async move {
+            builder.spawn(handler).await
+        }));
+        let driver_fut = Some(futures::future::FutureExt::boxed(async move {
+            fut.await.unwrap().unwrap();
+        }));
+
+        Self {
+            ghost_sender,
+            chan_sender,
+            driver_fut,
+            _phantom: std::marker::PhantomData,
+        }
+    }
+
+    /// Fetch a ghost_sender attached to the handler spawned by this guard.
+    pub fn get_ghost_sender(&self) -> GhostSender<E> {
+        self.ghost_sender.clone()
+    }
+
+    /// Fetch a chan_sender attached to the handler spawned by this guard.
+    pub fn get_chan_sender(&self) -> futures::channel::mpsc::Sender<E> {
+        self.chan_sender.clone()
+    }
+}
+
 // -- private -- //
 
 /// internal GhostReceiver (impl GhostChannelReceiver) implementation.

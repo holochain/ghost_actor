@@ -38,10 +38,27 @@ crate::ghost_chan! {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use ghost_actor::dependencies::futures::future::FutureExt;
 
-    #[tokio::test]
-    async fn test() {
-        // can we use mocks?
-        let _m = MockMyActorHandler::new();
+    #[test]
+    #[should_panic]
+    fn test_mock_drop_panic() {
+        // use a custom runtime so we don't break other test tasks
+        let rt = tokio::runtime::Builder::new_multi_thread()
+            .enable_all()
+            .build()
+            .unwrap();
+
+        rt.block_on(async move {
+            let mut m = MockMyActorHandler::new();
+            m.expect_handle_one_input_one_output()
+                .times(1)
+                .returning(|x| Ok(async move { Ok(x + 1) }.boxed().into()));
+
+            let _m = MockHandler::spawn(m, tokio::task::spawn).await;
+            // the mock handler will be dropped here
+            // the expected function will not have been run
+            // this will cause the test to panic
+        });
     }
 }
