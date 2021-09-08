@@ -106,10 +106,12 @@ macro_rules! ghost_chan {
 
             impl $crate::GhostEvent for $aname {}
 
+            #[allow(unused_doc_comments)]
             impl<H: [< $aname Handler >]> $crate::GhostDispatch<H> for $aname {
                 fn ghost_actor_dispatch(self, h: &mut H) {
                     match self {
                         $(
+                            $(#[$rmeta])*
                             $aname::$rnamec { span_context, respond, $($pname,)* } => {
                                 let span = $crate::dependencies::tracing::trace_span!(concat!("handle_", stringify!($rname)));
                                 let _g = span.enter();
@@ -124,10 +126,12 @@ macro_rules! ghost_chan {
             // -- implement debug - note this does not expose the parameters
             // -- because we don't want to require them to be Debug
 
+            #[allow(unused_doc_comments)]
             impl ::std::fmt::Debug for $aname {
                 fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
                     match self {
                         $(
+                            $(#[$rmeta])*
                             $aname :: $rnamec { .. } => {
                                 write!(
                                     f,

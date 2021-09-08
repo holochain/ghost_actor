@@ -93,9 +93,10 @@ mod tests {
             /// Calls internal ghost_actor_shutdown_immediate() command. In reality, you'd never need a command like this.
             fn funky_stop() -> ();
 
-            /// This message cannot even be defined since we are inside a test.
-            /// This is a compiler-time check of ghost_actor's macro expansion.
-            #[cfg(not(test))]
+            /// This message cannot even be defined since "impossible" is a bogus cfg attr.
+            /// This is just a compiler-time check of `ghost_chan!` macro expansion to make sure it uniformly
+            /// applies metadata across all of its implementations.
+            #[cfg(impossible)]
             fn impossible() -> ();
         }
     }
@@ -164,7 +165,7 @@ mod tests {
             Ok(async move { Ok(fut.await.unwrap()) }.must_box())
         }
 
-        #[cfg(not(test))]
+        #[cfg(impossible)]
         fn handle_impossible(&mut self) -> MyActorHandlerResult<()> {
             unreachable!()
         }
