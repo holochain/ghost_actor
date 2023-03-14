@@ -89,7 +89,8 @@ macro_rules! ghost_chan {
                     $(#[$rmeta])*
                     $rnamec {
                         /// Tracing span from request invocation.
-                        span_context: $crate::dependencies::observability::Context,
+                        // span_context: $crate::dependencies::observability::Context,
+                        span_context: (),
 
                         /// Response callback - respond to the request.
                         respond: $crate::GhostRespond<
@@ -112,10 +113,10 @@ macro_rules! ghost_chan {
                     match self {
                         $(
                             $(#[$rmeta])*
-                            $aname::$rnamec { span_context, respond, $($pname,)* } => {
+                            $aname::$rnamec { span_context: _, respond, $($pname,)* } => {
                                 let span = $crate::dependencies::tracing::trace_span!(concat!("handle_", stringify!($rname)));
                                 let _g = span.enter();
-                                $crate::dependencies::observability::OpenSpanExt::set_context(&span, span_context);
+                                // $crate::dependencies::observability::OpenSpanExt::set_context(&span, span_context);
                                 respond.respond(h.[< handle_ $rname >]($($pname,)*));
                             }
                         )*
@@ -163,11 +164,11 @@ macro_rules! ghost_chan {
                 $(
                     $(#[$rmeta])*
                     fn $rname(&self, $($pname: $pty),*) -> [< $aname Future >] <$rret> {
-                        use $crate::dependencies::observability::OpenSpanExt;
+                        // use $crate::dependencies::observability::OpenSpanExt;
                         let (s, r) = $crate::dependencies::futures::channel::oneshot::channel();
-                        let span_context = $crate::dependencies::tracing::Span::get_current_context();
+                        // let span_context = $crate::dependencies::tracing::Span::get_current_context();
                         let t = $aname::$rnamec {
-                            span_context,
+                            span_context: (),
                             respond: $crate::GhostRespond::new(
                                 s,
                                 concat!(stringify!($rname), "_respond"),
@@ -177,8 +178,8 @@ macro_rules! ghost_chan {
                         let send_fut = self.ghost_actor_channel_send(t);
                         $crate::dependencies::must_future::MustBoxFuture::new(async move {
                             send_fut.await?;
-                            let (r, span_context) = r.await.map_err($crate::GhostError::from)?;
-                            $crate::dependencies::tracing::Span::set_current_context(span_context);
+                            let (r, _span_context) = r.await.map_err($crate::GhostError::from)?;
+                            // $crate::dependencies::tracing::Span::set_current_context(span_context);
                             r?.await
                         })
                     }
