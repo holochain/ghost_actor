@@ -2,7 +2,6 @@
 //! Hello World GhostActor Example
 
 use ghost_actor::*;
-use observability::span_context;
 use tracing_futures::Instrument;
 
 // Most of the GhostActor magic happens in this macro.
@@ -18,19 +17,28 @@ ghost_chan! {
 /// Main Entrypoint
 #[tokio::main]
 async fn main() -> Result<(), GhostError> {
-    observability::test_run_open().ok();
+    let subscriber = tracing_subscriber::FmtSubscriber::builder()
+        .with_env_filter(
+            tracing_subscriber::filter::EnvFilter::from_default_env(),
+        )
+        .with_file(true)
+        .with_line_number(true)
+        .finish();
+    let _ = tracing::subscriber::set_global_default(subscriber);
+
     let span = tracing::debug_span!("main");
     let _g = span.enter();
-    span_context!(span);
+    tracing::trace!("");
+    // span_context!(span);
     // spawn our actor, getting the actor sender.
     let sender = spawn_hello_world().await?;
-    span_context!(span);
+    // span_context!(span);
 
     // we can make async calls on the sender
     assert_eq!("hello world!", &sender.hello_world().await?);
-    span_context!(span);
+    // span_context!(span);
     println!("{}", sender.hello_world().await?);
-    span_context!(span);
+    // span_context!(span);
 
     Ok(())
 }
@@ -74,8 +82,9 @@ impl HelloWorldApiHandler for HelloWorldImpl {
     fn handle_hello_world(&mut self) -> HelloWorldApiHandlerResult<String> {
         Ok(must_future::MustBoxFuture::new(
             async move {
-                let span = tracing::Span::current();
-                span_context!(span);
+                // let span = tracing::Span::current();
+                // span_context!(span);
+                tracing::trace!("");
                 Ok("hello world!".to_string())
             }
             .instrument(tracing::debug_span!("handle_hello_world")),

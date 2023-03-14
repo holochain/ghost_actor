@@ -259,7 +259,7 @@ pub mod dependencies {
     #[cfg(feature = "test_utils")]
     pub use mockall;
     pub use must_future;
-    pub use observability;
+    // pub use observability;
     pub use paste;
     pub use thiserror;
     pub use tracing;

@@ -51,6 +51,17 @@ mod tests {
     use crate::*;
     use must_future::*;
 
+    fn init_tracing() {
+        let subscriber = tracing_subscriber::FmtSubscriber::builder()
+            .with_env_filter(
+                tracing_subscriber::filter::EnvFilter::from_default_env(),
+            )
+            .with_file(true)
+            .with_line_number(true)
+            .finish();
+        let _ = tracing::subscriber::set_global_default(subscriber);
+    }
+
     /// Custom example error type.
     #[derive(Debug, thiserror::Error)]
     pub enum MyError {
@@ -236,7 +247,7 @@ mod tests {
 
     #[tokio::test]
     async fn it_check_echo() {
-        observability::test_run().ok();
+        init_tracing();
 
         let (sender, _) = MyActorImpl::spawn().await.unwrap();
 
@@ -248,7 +259,7 @@ mod tests {
 
     #[tokio::test]
     async fn it_check_add_1() {
-        observability::test_run().ok();
+        init_tracing();
 
         let (sender, _) = MyActorImpl::spawn().await.unwrap();
 
@@ -257,7 +268,7 @@ mod tests {
 
     #[tokio::test]
     async fn it_check_internal() {
-        observability::test_run().ok();
+        init_tracing();
 
         let (sender, _) = MyActorImpl::spawn().await.unwrap();
 
@@ -269,7 +280,7 @@ mod tests {
 
     #[tokio::test]
     async fn it_check_shutdown() {
-        observability::test_run().ok();
+        init_tracing();
 
         let (sender, did_shutdown) = MyActorImpl::spawn().await.unwrap();
 
@@ -283,7 +294,7 @@ mod tests {
 
     #[tokio::test]
     async fn it_check_internal_shutdown() {
-        observability::test_run().ok();
+        init_tracing();
 
         let (sender, did_shutdown) = MyActorImpl::spawn().await.unwrap();
 
