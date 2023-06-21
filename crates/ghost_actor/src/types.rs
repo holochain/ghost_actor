@@ -164,16 +164,15 @@ impl<E: GhostEvent> GhostChannelSender<E>
     fn ghost_actor_channel_send(&self, event: E) -> GhostFuture<()> {
         let mut sender = self.clone();
         ::must_future::MustBoxFuture::new(async move {
-            match tokio::time::timeout(std::time::Duration::from_secs(10), futures::sink::SinkExt::send(&mut sender, event)).await {
-                Ok(Ok(())) => {
-                    Ok(())
-                }
-                Ok(Err(e)) => {
-                    return Err(e.into())
-                }
-                Err(_) => {
-                    Err(GhostError::Timeout)
-                }
+            match tokio::time::timeout(
+                std::time::Duration::from_secs(10),
+                futures::sink::SinkExt::send(&mut sender, event),
+            )
+            .await
+            {
+                Ok(Ok(())) => Ok(()),
+                Ok(Err(e)) => Err(e.into()),
+                Err(_) => Err(GhostError::Timeout),
             }
         })
     }
