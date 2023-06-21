@@ -6,6 +6,10 @@ pub enum GhostError {
     #[error("GhostActorDisconnected")]
     Disconnected,
 
+    /// There was a timeout trying to send an event
+    #[error("Timeout")]
+    Timeout,
+
     /// Unspecified GhostActor error.
     #[error(transparent)]
     Other(Box<dyn std::error::Error + Send + Sync>),
@@ -160,8 +164,21 @@ impl<E: GhostEvent> GhostChannelSender<E>
     fn ghost_actor_channel_send(&self, event: E) -> GhostFuture<()> {
         let mut sender = self.clone();
         ::must_future::MustBoxFuture::new(async move {
-            futures::sink::SinkExt::send(&mut sender, event).await?;
-            Ok(())
+            tokio::select! {
+                r = futures::sink::SinkExt::send(&mut sender, event) => {
+                    match r {
+                        Ok(()) => {
+                            Ok(())
+                        }
+                        Err(e) => {
+                            return Err(e.into())
+                        }
+                    }
+                }
+                () = tokio::time::sleep(std::time::Duration::from_secs(10)) => {
+                    return Err(GhostError::Timeout)
+                }
+            }
         })
     }
 }
