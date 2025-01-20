@@ -1,6 +1,10 @@
 name: ghost_actor
 
-on: [ push, pull_request ]
+on:
+  pull_request: {}
+  push:
+    branches:
+      - main
 
 jobs:
   fmt-check:
