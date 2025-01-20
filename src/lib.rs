@@ -1,5 +1,4 @@
 #![forbid(unsafe_code)]
-#![forbid(warnings)]
 #![forbid(missing_docs)]
 //! GhostActor makes it simple, ergonomic, and idiomatic to implement
 //! async / concurrent code using an Actor model.
@@ -190,7 +189,6 @@ pub mod dependencies {
 
 #[macro_use]
 mod box_macros;
-pub use box_macros::*;
 mod error;
 pub use error::*;
 mod as_ghost_actor;

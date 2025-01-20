@@ -35,7 +35,7 @@ struct NoGravity(GhostActor<NoGravityInner>);
 
 impl NoGravity {
     /// Create a new entity with starting position / velocity.
-    pub fn new(x: i8, vx: i8, y: i8, vy: i8) -> BoxEntity {
+    pub fn create(x: i8, vx: i8, y: i8, vy: i8) -> BoxEntity {
         let (actor, driver) = GhostActor::new(NoGravityInner { x, vx, y, vy });
         tokio::task::spawn(driver);
         let out = Self(actor.clone());
@@ -81,7 +81,7 @@ impl Entity for NoGravity {
             .0
             .invoke(|inner| Result::Ok(('O', inner.x as u8, inner.y as u8)));
 
-        resp(async move { fut.await })
+        resp(fut)
     }
 }
 
@@ -99,7 +99,7 @@ struct Gravity(GhostActor<GravityInner>);
 
 impl Gravity {
     /// Create a new entity with starting position / velocity.
-    pub fn new(x: f32, vx: f32, y: f32, vy: f32) -> BoxEntity {
+    pub fn create(x: f32, vx: f32, y: f32, vy: f32) -> BoxEntity {
         const G: f32 = 0.1;
         let (actor, driver) = GhostActor::new(GravityInner { x, vx, y, vy });
         tokio::task::spawn(driver);
@@ -113,11 +113,11 @@ impl Gravity {
                         inner.y += inner.vy;
                         if inner.x >= 16.0 {
                             inner.vx = -inner.vx;
-                            inner.x -= inner.x - 16.0;
+                            inner.x -= 16.0;
                         }
                         if inner.y >= 8.0 {
                             inner.vy = -inner.vy;
-                            inner.y -= inner.y - 8.0;
+                            inner.y -= 8.0;
                             if inner.vy.abs() < 0.2 {
                                 inner.vy = -1.2;
                             }
@@ -153,7 +153,7 @@ impl Entity for Gravity {
             Result::Ok(('#', inner.x.round() as u8, inner.y.round() as u8))
         });
 
-        resp(async move { fut.await })
+        resp(fut)
     }
 }
 
@@ -162,6 +162,12 @@ type WorldInner = Vec<BoxEntity>;
 
 /// A world contains entities.
 pub struct World(GhostActor<WorldInner>);
+
+impl Default for World {
+    fn default() -> Self {
+        Self::new()
+    }
+}
 
 impl World {
     /// initialize a new World instance.
@@ -189,12 +195,8 @@ impl World {
 
     /// get the positions + characters of all entities in this World.
     pub async fn draw(&self) -> Result<Vec<(char, u8, u8)>> {
-        let entities: Vec<BoxEntity> = self
-            .0
-            .invoke(|inner| {
-                Result::Ok(inner.iter().map(|x| x.clone()).collect())
-            })
-            .await?;
+        let entities: Vec<BoxEntity> =
+            self.0.invoke(|inner| Result::Ok(inner.to_vec())).await?;
 
         let mut out = Vec::new();
 
@@ -213,16 +215,18 @@ impl World {
 pub async fn main() -> Result<()> {
     // draw the board
     print!("\x1b[2J\x1b[1;1H");
-    print!("+----------------+\n");
+    println!("+----------------+");
     for _ in 0..8 {
-        print!("|                |\n");
+        println!("|                |");
     }
-    print!("+----------------+\n");
+    println!("+----------------+");
 
     // construct the actors
     let world = World::new();
-    world.add_entity(NoGravity::new(0, 1, 0, 1)).await?;
-    world.add_entity(Gravity::new(15.0, -0.2, 0.0, 0.0)).await?;
+    world.add_entity(NoGravity::create(0, 1, 0, 1)).await?;
+    world
+        .add_entity(Gravity::create(15.0, -0.2, 0.0, 0.0))
+        .await?;
 
     // render loop
     let mut prev_points: Vec<(u8, u8)> = Vec::new();
@@ -236,8 +240,8 @@ pub async fn main() -> Result<()> {
 
         for (c, mut x, mut y) in world.draw().await? {
             // account for border
-            x = x + 1;
-            y = y + 1;
+            x += 1;
+            y += 1;
             // register to be erased next loop
             prev_points.push((x, y));
             // draw character at position

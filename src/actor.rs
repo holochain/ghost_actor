@@ -81,13 +81,10 @@ impl<T: 'static + Send> GhostActor<T> {
 
                 // construct logic closure
                 let inner: InnerInvoke<T> = Box::new(move |t: &mut T| {
-                    let strong = match weak.upgrade() {
-                        Some(strong) => strong,
-                        None => {
-                            tracing::warn!("TRACING: Parent context dropped");
-                            Arc::new(tracing::Span::current())
-                        }
-                    };
+                    let strong = weak.upgrade().unwrap_or_else(|| {
+                        tracing::warn!("TRACING: Parent context dropped");
+                        Arc::new(tracing::Span::current())
+                    });
                     strong.in_scope(|| {
                         let r = invoke(t);
                         let _ = o_send.send(r);
@@ -124,7 +121,7 @@ impl<T: 'static + Send> AsGhostActor for GhostActor<T> {
         invoke: RawInvokeClosure,
     ) -> GhostFuture<Box<dyn std::any::Any + 'static + Send>, GhostError> {
         let fut = self.invoke(|t| invoke(t));
-        resp(async move { fut.await })
+        resp(fut)
     }
 
     fn __is_active(&self) -> bool {
@@ -144,7 +141,7 @@ impl<T: 'static + Send> AsGhostActor for GhostActor<T> {
     }
 
     fn __box_eq(&self, o: &dyn std::any::Any) -> bool {
-        let o: &GhostActor<T> = match std::any::Any::downcast_ref(o) {
+        let o: &GhostActor<T> = match <dyn std::any::Any>::downcast_ref(o) {
             None => return false,
             Some(o) => o,
         };
