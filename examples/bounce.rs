@@ -195,12 +195,8 @@ impl World {
 
     /// get the positions + characters of all entities in this World.
     pub async fn draw(&self) -> Result<Vec<(char, u8, u8)>> {
-        let entities: Vec<BoxEntity> = self
-            .0
-            .invoke(|inner| {
-                Result::Ok(inner.to_vec())
-            })
-            .await?;
+        let entities: Vec<BoxEntity> =
+            self.0.invoke(|inner| Result::Ok(inner.to_vec())).await?;
 
         let mut out = Vec::new();
 
@@ -228,7 +224,9 @@ pub async fn main() -> Result<()> {
     // construct the actors
     let world = World::new();
     world.add_entity(NoGravity::create(0, 1, 0, 1)).await?;
-    world.add_entity(Gravity::create(15.0, -0.2, 0.0, 0.0)).await?;
+    world
+        .add_entity(Gravity::create(15.0, -0.2, 0.0, 0.0))
+        .await?;
 
     // render loop
     let mut prev_points: Vec<(u8, u8)> = Vec::new();
