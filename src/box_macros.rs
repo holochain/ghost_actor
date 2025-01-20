@@ -145,7 +145,7 @@ macro_rules! ghost_box_trait_impl_fns {
 
         #[inline]
         fn __box_eq(&self, o: &dyn ::std::any::Any) -> bool {
-            let c: &Self = match ::std::any::Any::downcast_ref(o) {
+            let c: &Self = match <dyn ::std::any::Any>::downcast_ref(o) {
                 None => return false,
                 Some(c) => c,
             };
