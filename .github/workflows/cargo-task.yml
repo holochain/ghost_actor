@@ -112,6 +112,4 @@ jobs:
     steps:
       - uses: re-actors/alls-green@release/v1
         with:
-          allowed-failures: docs, linters
-          allowed-skips: non-voting-flaky-job
           jobs: ${{ toJSON(needs) }}
